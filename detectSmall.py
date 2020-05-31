@@ -6,140 +6,11 @@ from utils.datasets import *
 from utils.utils import *
 
 from lib_patches import *
+from tennis import *
 import imutils
+import time
 
 
-class Queue:
-  "A container with a first-in-first-out (FIFO) queuing policy."
-  def __init__(self):
-    self.list = []
-  
-  def push(self,item):
-    "Enqueue the 'item' into the queue"
-    self.list.insert(0,item)
-
-  def pop(self):
-    """
-      Dequeue the earliest enqueued item still in the queue. This
-      operation removes the item from the queue.
-    """
-    return self.list.pop()
-
-  def isEmpty(self):
-    "Returns true if the queue is empty"
-    return len(self.list) == 0
-
-
-
-class TennisState:
-
-    " Tennis Game state including ball, players position, ball tracer, court key points ..."
-    def __init__(self, ballTracer):
-        self.players = [
-            { "box" : (0,0,0,0),
-            "conf" : 0},
-            { "box" : (0,0,0,0),
-            "conf" : 0}
-        ]
-        self.ball = {
-            "box" : (0,0,0,0),
-            "conf" : 0
-        }
-        self.courtIsDetected = False
-
-        self.balls = Queue() # Save in memory last -ballTracer balls positions
-        
-        self.trainingBalls = [] #(xA, yA, xB, yB)
-        self.lastFrameBalls = []
-        self.currentFrameBalls = []
-
-        self.lastFrameBallsPatch = 30 * [[]] # 30 patch # element i : lastFrameBalls of patch i
-        self.currentFrameBallsPatch = 30 * [[]]
-
-    def clearDetections(self, xyxy, conf, className):
-        if className == "sports ball":
-
-            # Check ball size
-            # False positive rejection by area size
-            if getArea(xyxy) > 10000:
-                return False
-
-
-            print("[INFO] New ball !")
-            self.currentFrameBalls.append(xyxy)
-            # Initialize training balls (non-moving ball in first frames)
-            if self.lastFrameBalls == []:
-                #self.trainingBalls.append(xyxy)
-                return True
-            else:
-            # Check if detected ball is in the same position as ONE of the last frame balls
-                for i,ball in enumerate(self.lastFrameBalls):
-                    print("ball : {}, lastframe ball {} {}  . IoU = {}".format(tensorPointToList(xyxy), i,tensorPointToList(ball),bb_intersection_over_union(xyxy,ball)))
-                    if bb_intersection_over_union(xyxy,ball) > 0.1:
-                        return False
-                
-                print("[INFO] Real ball detected !")
-                self.ball['box'] = xyxy
-                self.ball['conf'] = conf
-                return True
-
-                
-        elif className == "person":
-            return True
-
-        elif className == "tennis racket":
-            return True
-
-        return True
-
-    def clearPatchDetections(self, indexPatch, xyxy, conf, className):
-        if className == "sports ball":
-
-            # Check ball size
-            # False positive rejection by area size
-            if getArea(xyxy) > 10000:
-                return False
-
-
-            print("[INFO] New ball !")
-            self.currentFrameBallsPatch[indexPatch].append(xyxy)
-            # Initialize training balls (non-moving ball in first frames)
-            if self.lastFrameBallsPatch[indexPatch] == []:
-                #self.trainingBalls.append(xyxy)
-                return True
-            else:
-            # Check if detected ball is in the same position as ONE of the last frame balls
-                for i,ball in enumerate(self.lastFrameBallsPatch[indexPatch]):
-                    print("ball : {}, lastframe ball {} {}  . IoU = {}".format(tensorPointToList(xyxy), i,tensorPointToList(ball),bb_intersection_over_union(xyxy,ball)))
-                    if bb_intersection_over_union(xyxy,ball) > 0.1:
-                        return False
-                
-                print("[INFO] Real ball detected !")
-                self.ball['box']= xyxy
-                self.ball['conf']= conf
-                return True
-
-                
-        elif className == "person":
-            if self.players[0]['box'] == (0,0,0,0):
-                self.players[0]['box'] = xyxy
-                self.players[0]['conf'] = conf
-                return True
-            elif self.players[1]['box'] == (0,0,0,0):
-                self.players[1]['box'] = xyxy
-                self.players[1]['conf'] = conf
-                return True
-            elif conf > self.players[0]['conf']:
-                self.players[0]['box'] = xyxy
-                self.players[0]['conf'] = conf
-
-
-        elif className == "tennis racket":
-            return True
-
-
-
-        return True
 
 def detect(save_img=False):
     img_size = (320, 192) if ONNX_EXPORT else opt.img_size  # (320, 192) or (416, 256) or (608, 352) for (height, width)
@@ -155,7 +26,7 @@ def detect(save_img=False):
 
 
     # Initialize Tennis State
-    gameState = TennisState(ballTracer = 5)
+    gameState = TennisState(maxBalls = 5)
 
     # Initialize model
     model = Darknet(opt.cfg, img_size)
@@ -214,7 +85,7 @@ def detect(save_img=False):
     names = load_classes(opt.names)
     colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(names))]
 
-
+    # Prediction on raw image
     if (opt.patch == 0):
 
         # Run inference
@@ -222,6 +93,13 @@ def detect(save_img=False):
         # im0s -> real img
         # img -> transformed img (padded .. right size ...)
         for path, img, im0s, vid_cap in dataset:
+            
+            # Detect tennis court on the first frame
+            if gameState.courtIsDetected == False:
+                gameState.court = detectTennisCourt(im0s)
+                gameState.courtIsDetected = True
+                gameState.scaleDistance = getEuclideanDistance(gameState.court[0][0], gameState.court[2][0])
+                print("Scale distance :  {}".format(gameState.scaleDistance) )
 
             img = torch.from_numpy(img).to(device)
             img = img.half() if half else img.float()  # uint8 to fp16/32
@@ -261,7 +139,25 @@ def detect(save_img=False):
                     for c in det[:, -1].unique():
                         n = (det[:, -1] == c).sum()  # detections per class
                         s += '%g %ss, ' % (n, names[int(c)])  # add to string
+                    
 
+                    # Clean to select only 2 players with max confidence
+                    leftPersons = []
+                    rightPersons = []
+                    for *xyxy, conf, cls in det:
+                        if names[int(cls)] == "person" and getArea(xyxy) > 10000:
+                            if (getRectCenter(xyxy))[0] < im0.shape[1] /  2:
+                                leftPersons.append((xyxy,conf,cls))
+                            else:
+                                rightPersons.append((xyxy,conf,cls))
+                    
+                    gameState.identifyPlayersAndPlot(im0,leftPersons, rightPersons, colors)
+
+                    # Update watch
+                    gameState.updateTimeWatch(im0, 60)
+
+
+                    """
                     # Write results
                     for *xyxy, conf, cls in det:
 
@@ -273,9 +169,12 @@ def detect(save_img=False):
                             label = '%s %.2f' % (names[int(cls)], conf)
                             if (gameState.clearDetections(xyxy, conf, names[int(cls)])):
                                 plot_one_box(xyxy, im0, label=label, color=colors[int(cls)])
+                    """
 
                     # Update state after all detections processing
                     print("[INFO] Update Game state ...")
+                    for index, distance in enumerate(gameState.distances):
+                        print("[INFO] Player {} : {} m".format(index,distance))
                     gameState.lastFrameBalls = gameState.currentFrameBalls
                     gameState.currentFrameBalls = []
                 # Print time (inference + NMS)
@@ -311,7 +210,7 @@ def detect(save_img=False):
                 os.system('open ' + out + ' ' + save_path)
         print('Done. (%.3fs)' % (time.time() - t0))
 
-    # Patch inference
+    # Prediction on image patches. Use --patch and --overlap arguments to use patch inference.
     else:
        
         
@@ -391,7 +290,8 @@ def detect(save_img=False):
                                     plot_one_box(xyxy, im0, label=label, color=colors[int(cls)])
 
 
-
+                    # Plot ball tracer
+                    plot_ball_history(gameState.balls,im0)
                     # Print patch time (inference + NMS)
                     patches[index] = im0 #Update patches array
                     print('Patch inference %d/%d %sDone. (%.3fs)' % (index,len(patches),s, t2 - t1))
@@ -438,33 +338,6 @@ def detect(save_img=False):
         print('Done. (%.3fs)' % (time.time() - t0))
 
 
-
-def bb_intersection_over_union(boxA, boxB):
-	# determine the (x, y)-coordinates of the intersection rectangle
-	xA = max(boxA[0], boxB[0])
-	yA = max(boxA[1], boxB[1])
-	xB = min(boxA[2], boxB[2])
-	yB = min(boxA[3], boxB[3])
-	# compute the area of intersection rectangle
-	interArea = max(0, xB - xA + 1) * max(0, yB - yA + 1)
-	# compute the area of both the prediction and ground-truth
-	# rectangles
-	boxAArea = (boxA[2] - boxA[0] + 1) * (boxA[3] - boxA[1] + 1)
-	boxBArea = (boxB[2] - boxB[0] + 1) * (boxB[3] - boxB[1] + 1)
-	# compute the intersection over union by taking the intersection
-	# area and dividing it by the sum of prediction + ground-truth
-	# areas - the interesection area
-	iou = interArea / float(boxAArea + boxBArea - interArea)
-	# return the intersection over union value
-	return iou
-
-def tensorPointToList(xyxy):
-    return (int(xyxy[0]),int(xyxy[1]),int(xyxy[2]),int(xyxy[3]))
-
-
-def getArea(xyxy):
-    xA, yA, xB, yB = tensorPointToList(xyxy)
-    return (xB - xA) * (yB - yA)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
