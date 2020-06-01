@@ -72,7 +72,7 @@ class TennisState:
     #        index index of players. 0 is left player and 1 is right player.
     def updatePlayersDistance(self,index,xyxy):
         self.distances[index] +=  (getEuclideanDistance(getRectCenter(self.players[index]["box"]), xyxy)  * TOP_BOTTOM_DISTANCE) / (self.scaleDistance*100)
-
+        self.distances[index] = round(self.distances[index],2)
 
     # Identify the real players based on the detected persons in the frame
     def identifyPlayersAndPlot(self,im, leftPersons, rightPersons, colors):
@@ -101,7 +101,7 @@ class TennisState:
         strTime = time_convert(self.timeWatch)
         tl = round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1  # line/font thickness
         tf = max(tl - 1, 1)  # font thickness
-        cv2.putText(img, strTime, (img.shape[1] - 500, img.shape[0]-100), cv2.FONT_HERSHEY_DUPLEX, tl / 3, [225, 255, 255], thickness=tf, lineType=cv2.LINE_AA)
+        cv2.putText(img, strTime, (int(img.shape[1] / 2) - 200, 300), cv2.FONT_HERSHEY_SIMPLEX, tl / 3, [0, 255, 255], thickness=tf, lineType=cv2.LINE_AA)
 
 
     # Clear object detections to keep only relevant detections with rules ( 2 players and 1 ball)
@@ -414,13 +414,13 @@ def plot_players_distances(distances, img):
     tf = max(tl - 1, 1)
 
     for index, distance in enumerate(distances):
-        label = str(round(distance,2)) + "m"
+        label = str(distance) + "m"
         # Left player
         if index == 0:
-            cv2.putText(img, label, (10, 100), cv2.FONT_HERSHEY_DUPLEX, tl / 3, [225, 255, 255], thickness=tf, lineType=cv2.LINE_AA)
+            cv2.putText(img, label, (200, 300), cv2.FONT_HERSHEY_SIMPLEX, tl / 3, [0, 255, 255], thickness=tf, lineType=cv2.LINE_AA)
         # Right player
         else:
-            cv2.putText(img, label, (w - 500, 100), cv2.FONT_HERSHEY_DUPLEX, tl / 3, [225, 255, 255], thickness=tf, lineType=cv2.LINE_AA)
+            cv2.putText(img, label, (w - 600, 300), cv2.FONT_HERSHEY_SIMPLEX, tl / 3, [0, 255, 255], thickness=tf, lineType=cv2.LINE_AA)
 
 
 def time_convert(sec):
@@ -428,6 +428,6 @@ def time_convert(sec):
     sec = round(sec % 60,4)
     hours = mins // 60
     mins = mins % 60
-    strTime = "{0}:{1}".format(int(mins),sec)
+    strTime = "{}:{:.4f}".format(int(mins),sec)
     return strTime
 

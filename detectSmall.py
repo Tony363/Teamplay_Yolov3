@@ -5,24 +5,26 @@ from models import *  # set ONNX_EXPORT in models.py
 from utils.datasets import *
 from utils.utils import *
 
-from lib_patches import *
-from tennis import *
 import imutils
 import time
 
+# Tennis libraries
+from tennis.lib_patches import *
+from tennis.tennis import *
 
+
+
+# python3 detectSmall.py --source video_path.mp4 --cfg cfg/yolov3.cfg --weights weights/yolov3.pt --classes 0 32 38 --iou-thres 0.1 --view-img
 
 def detect(save_img=False):
     img_size = (320, 192) if ONNX_EXPORT else opt.img_size  # (320, 192) or (416, 256) or (608, 352) for (height, width)
     out, source, weights, half, view_img, save_txt = opt.output, opt.source, opt.weights, opt.half, opt.view_img, opt.save_txt
     webcam = source == '0' or source.startswith('rtsp') or source.startswith('http') or source.endswith('.txt')
 
-    # Initialize
+    # Initialize the device
     device = torch_utils.select_device(device='cpu' if ONNX_EXPORT else opt.device)
     if os.path.exists(out)==False:
-        #shutil.rmtree(out)  # delete output folder
         os.makedirs(out)  # make new output folder
-    #os.makedirs(out)  # make nself.lastFrameBalls = []ew output folder
 
 
     # Initialize Tennis State
@@ -45,7 +47,7 @@ def detect(save_img=False):
         modelc.load_state_dict(torch.load('weights/resnet101.pt', map_location=device)['model'])  # load weights
         modelc.to(device).eval()
 
-    # Eval mode
+    # Export model to device Eval mode
     model.to(device).eval()
 
     # Fuse Conv2d + BatchNorm2d layers
@@ -101,11 +103,15 @@ def detect(save_img=False):
                 gameState.scaleDistance = getEuclideanDistance(gameState.court[0][0], gameState.court[2][0])
                 print("Scale distance :  {}".format(gameState.scaleDistance) )
 
+
+            # Allocate the image tensor to the chosen device
             img = torch.from_numpy(img).to(device)
             img = img.half() if half else img.float()  # uint8 to fp16/32
             img /= 255.0  # 0 - 255 to 0.0 - 1.0
+            # Resize  the tensor
             if img.ndimension() == 3:
                 img = img.unsqueeze(0)
+
             # Inference
             t1 = torch_utils.time_synchronized()
             pred = model(img, augment=opt.augment)[0]
@@ -115,6 +121,7 @@ def detect(save_img=False):
             if half:
                 pred = pred.float()
             print("00000000   " , opt.classes)
+
             # Apply NMS
             pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres,
                                     multi_label=False, classes=opt.classes, agnostic=opt.agnostic_nms)
@@ -141,16 +148,26 @@ def detect(save_img=False):
                         s += '%g %ss, ' % (n, names[int(c)])  # add to string
                     
 
-                    # Clean to select only 2 players with max confidence
-                    leftPersons = []
-                    rightPersons = []
+                    
+                    leftPersons = [] # potential left player
+                    rightPersons = [] # potential right player
+                    
+                    # Iterate over all detections
+                    # *xyxy - bounding 
                     for *xyxy, conf, cls in det:
                         if names[int(cls)] == "person" and getArea(xyxy) > 10000:
+                            # If the detected person in on the left side of the image
                             if (getRectCenter(xyxy))[0] < im0.shape[1] /  2:
                                 leftPersons.append((xyxy,conf,cls))
                             else:
                                 rightPersons.append((xyxy,conf,cls))
-                    
+
+                        # Plot any other detected objects
+                        elif names[int(cls)] != "person":
+                            label = '%s %.2f' % (names[int(cls)], conf)
+                            plot_one_box(xyxy, im0, label=label, color=colors[int(cls)])
+                               
+                    # Update the player position and display the player bounding box on image
                     gameState.identifyPlayersAndPlot(im0,leftPersons, rightPersons, colors)
 
                     # Update watch
@@ -172,7 +189,7 @@ def detect(save_img=False):
                     """
 
                     # Update state after all detections processing
-                    print("[INFO] Update Game state ...")
+                    print("[INFO] Update Game State ...")
                     for index, distance in enumerate(gameState.distances):
                         print("[INFO] Player {} : {} m".format(index,distance))
                     gameState.lastFrameBalls = gameState.currentFrameBalls
@@ -355,7 +372,7 @@ if __name__ == '__main__':
     parser.add_argument('--view-img', action='store_true', help='display results')
     parser.add_argument('--save-txt', action='store_true', help='save results to *.txt')
     parser.add_argument('--classes', nargs='+', type=int, help='filter by class')
-    parser.add_argument('--agnostic-nms', action='store_true', help='class-agnostic NMS')
+    parser.add_argument('--agnostic-nms', action='store_true', help='class-agnostic NMS.')
     parser.add_argument('--augment', action='store_true', help='augmented inference')
     parser.add_argument('--patch', type=int, default=0, help='patch size used for patches-based inference. ') # patch 1000 and overlap 200
     parser.add_argument('--overlap', type=int, help='overlap length used for patches-based inference. Should be greater or equal to the biggest relevant object')

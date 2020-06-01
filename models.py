@@ -240,6 +240,7 @@ class Darknet(nn.Module):
             img_size = x.shape[-2:]  # height, width
             s = [0.83, 0.67]  # scales
             y = []
+            # Inference on augmented image. Default, LR flip, scale images
             for i, xi in enumerate((x,
                                     torch_utils.scale_img(x.flip(3), s[0], same_shape=False),  # flip-lr and scale
                                     torch_utils.scale_img(x, s[1], same_shape=False),  # scale
