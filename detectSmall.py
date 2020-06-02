@@ -18,7 +18,7 @@ from tennis.tennis import *
 
 def detect(save_img=False):
     img_size = (320, 192) if ONNX_EXPORT else opt.img_size  # (320, 192) or (416, 256) or (608, 352) for (height, width)
-    out, source, weights, half, view_img, save_txt = opt.output, opt.source, opt.weights, opt.half, opt.view_img, opt.save_txt
+    zoom,out, source, weights, half, view_img, save_txt = opt.zoom,opt.output, opt.source, opt.weights, opt.half, opt.view_img, opt.save_txt
     webcam = source == '0' or source.startswith('rtsp') or source.startswith('http') or source.endswith('.txt')
 
     # Initialize the device
@@ -64,7 +64,7 @@ def detect(save_img=False):
         import onnx
         model = onnx.load(f)  # Load the ONNX model
         onnx.checker.check_model(model)  # Check that the IR is well formed
-        print(onnx.helper.printable_graph(model.graph))  # Print a human readable representation of the graph
+        # print(onnx.helper.printable_graph(model.graph))  # Print a human readable representation of the graph
         return
 
     # Half precision
@@ -101,7 +101,7 @@ def detect(save_img=False):
                 gameState.court = detectTennisCourt(im0s)
                 gameState.courtIsDetected = True
                 gameState.scaleDistance = getEuclideanDistance(gameState.court[0][0], gameState.court[2][0])
-                print("Scale distance :  {}".format(gameState.scaleDistance) )
+                # print("Scale distance :  {}".format(gameState.scaleDistance) )
 
 
             # Allocate the image tensor to the chosen device
@@ -120,7 +120,7 @@ def detect(save_img=False):
             # to float
             if half:
                 pred = pred.float()
-            print("00000000   " , opt.classes)
+            # print("00000000   " , opt.classes)
 
             # Apply NMS
             pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres,
@@ -138,7 +138,8 @@ def detect(save_img=False):
 
                 save_path = str(Path(out) / Path(p).name)
                 s += '%gx%g ' % img.shape[2:]  # print string
-                if det is not None and len(det):
+                if det is not None and len(det): 
+                    # zoom = True # Trial  
                     # Rescale boxes from img_size to im0 size
                     det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
                     
@@ -170,6 +171,17 @@ def detect(save_img=False):
                     # Update the player position and display the player bounding box on image
                     gameState.identifyPlayersAndPlot(im0,leftPersons, rightPersons, colors)
 
+                    def zoomin(zoom,im0,xyxy):
+                        top_rows,top_cols,bottom_rows,bottom_cols = xyxy
+                        crop = im0[int(top_rows):int(bottom_rows),int(top_cols):int(bottom_cols)]
+                        if not zoom:
+                            crop = im0[:,:]
+                            return zoom,crop
+                        return zoom,crop
+                    
+                    if zoom:
+                        zoom,im0 = zoomin(zoom,im0,gameState.players[0]["box"]) #crop image
+                    
                     # Update watch
                     gameState.updateTimeWatch(im0, 60)
 
@@ -189,13 +201,13 @@ def detect(save_img=False):
                     """
 
                     # Update state after all detections processing
-                    print("[INFO] Update Game State ...")
-                    for index, distance in enumerate(gameState.distances):
-                        print("[INFO] Player {} : {} m".format(index,distance))
+                    # print("[INFO] Update Game State ...")
+                    # for index, distance in enumerate(gameState.distances):
+                        # print("[INFO] Player {} : {} m".format(index,distance))
                     gameState.lastFrameBalls = gameState.currentFrameBalls
                     gameState.currentFrameBalls = []
                 # Print time (inference + NMS)
-                print('%sDone. (%.3fs)' % (s, t2 - t1))
+                # print('%sDone. (%.3fs)' % (s, t2 - t1))
 
                 # Stream results
                 if view_img:
@@ -219,13 +231,16 @@ def detect(save_img=False):
                             w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                             h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                             vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (w, h))
+                        if zoom:
+                            vid_writer.write(im0)
+                            vid_writer.write(im0)
                         vid_writer.write(im0)
 
         if save_txt or save_img:
-            print('Results saved to %s' % os.getcwd() + os.sep + out)
+            # print('Results saved to %s' % os.getcwd() + os.sep + out)
             if platform == 'darwin':  # MacOS
                 os.system('open ' + out + ' ' + save_path)
-        print('Done. (%.3fs)' % (time.time() - t0))
+        # print('Done. (%.3fs)' % (time.time() - t0))
 
     # Prediction on image patches. Use --patch and --overlap arguments to use patch inference.
     else:
@@ -311,16 +326,16 @@ def detect(save_img=False):
                     plot_ball_history(gameState.balls,im0)
                     # Print patch time (inference + NMS)
                     patches[index] = im0 #Update patches array
-                    print('Patch inference %d/%d %sDone. (%.3fs)' % (index,len(patches),s, t2 - t1))
+                    # print('Patch inference %d/%d %sDone. (%.3fs)' % (index,len(patches),s, t2 - t1))
                     # Update state after all detections processing
-                    print("[INFO] Update Game state ...")
+                    # print("[INFO] Update Game state ...")
                     gameState.lastFrameBallsPatch[index] = gameState.currentFrameBallsPatch[index]
                     gameState.currentFrameBallsPatch[index] = []
                     
             
             
             fullImg = patchesRelToImage(patches, patchesRelativePos,im0s.shape[0], im0s.shape[1])                   
-            print('Full Image Done. (%.3fs)' % (time.time() - timeStartFullImg))
+            # print('Full Image Done. (%.3fs)' % (time.time() - timeStartFullImg))
             
             
             
@@ -348,11 +363,11 @@ def detect(save_img=False):
                     vid_writer.write(fullImg)
 
         if save_txt or save_img:
-            print('Results saved to %s' % os.getcwd() + os.sep + out)
+            # print('Results saved to %s' % os.getcwd() + os.sep + out)
             if platform == 'darwin':  # MacOS
                 os.system('open ' + out + ' ' + save_path)
         
-        print('Done. (%.3fs)' % (time.time() - t0))
+        # print('Done. (%.3fs)' % (time.time() - t0))
 
 
 
@@ -376,8 +391,9 @@ if __name__ == '__main__':
     parser.add_argument('--augment', action='store_true', help='augmented inference')
     parser.add_argument('--patch', type=int, default=0, help='patch size used for patches-based inference. ') # patch 1000 and overlap 200
     parser.add_argument('--overlap', type=int, help='overlap length used for patches-based inference. Should be greater or equal to the biggest relevant object')
+    parser.add_argument('--zoom',action="store_true", help='zoom or not to zoom [True/False]')
     opt = parser.parse_args()
-    print(opt)
+    # print(opt)
 
     with torch.no_grad():
         detect()
