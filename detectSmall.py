@@ -18,7 +18,7 @@ from tennis.tennis import *
 
 def detect(save_img=False):
     img_size = (320, 192) if ONNX_EXPORT else opt.img_size  # (320, 192) or (416, 256) or (608, 352) for (height, width)
-    zoom,out, source, weights, half, view_img, save_txt = opt.zoom,opt.output, opt.source, opt.weights, opt.half, opt.view_img, opt.save_txt
+    zoom,zoom_object,out, source, weights, half, view_img, save_txt = opt.zoom,opt.zoom_object,opt.output, opt.source, opt.weights, opt.half, opt.view_img, opt.save_txt
     webcam = source == '0' or source.startswith('rtsp') or source.startswith('http') or source.endswith('.txt')
 
     # Initialize the device
@@ -171,14 +171,43 @@ def detect(save_img=False):
                     # Update the player position and display the player bounding box on image
                     gameState.identifyPlayersAndPlot(im0,leftPersons, rightPersons, colors)
 
-                    def zoomin(zoom,im0,xyxy):
+                    def zoomin(zoom,im0,xyxy,speed=10):
+                        print(xyxy)
                         top_rows,top_cols,bottom_rows,bottom_cols = xyxy
-                        crop = im0[int(top_rows):int(bottom_rows),int(top_cols):int(bottom_cols)]
+                        if zoom_object == 'object':
+                            crop = im0[int(top_rows):int(bottom_rows),int(top_cols):int(bottom_cols)]
+                        # elif zoom_object == 'player':
+                        #     if top_rows < 1056 and top_cols < 2517:
+                        #         crop = im0[top_rows:-speed,top_cols:-speed*2]
+                        #         return zoom,crop
+                        #     elif top_rows > 1056 and top_cols > 2517:
+                        #         crop = im0[speed:top_rows,speed*2:top_cols] 
+                        #         return zoom,crop
+                        #     elif top_cols > 2517 and top_rows < 1056:
+                        #         crop = im0[top_rows:-speed,speed*2:top_cols]
+                        #         return zoom,crop
+                        #     elif top_cols < 2517 and top_rows > 1056:
+                        #         crop = im0[speed:top_rows,top_cols:-speed*2]
+                        #         return zoom,crop
+                        #     elif top_rows > 1056:
+                        #         crop = im0[speed:,:]
+                        #         return zoom,crop
+                        #     elif top_rows < 1056:
+                        #         crop = im0[:-speed,:]
+                        #         return zoom,crop
+                        #     elif top_cols > 2517:
+                        #         crop = im0[:,speed:]
+                        #         return zoom,crop
+                        #     elif top_cols < 2517:
+                        #         crop = im0[:,:-speed]
+                        #         return zoom,crop
                         if not zoom:
                             crop = im0[:,:]
                             return zoom,crop
                         return zoom,crop
-                    
+                        
+
+                    # zoom in if flag triggered
                     if zoom:
                         zoom,im0 = zoomin(zoom,im0,gameState.players[0]["box"]) #crop image
                     
@@ -392,6 +421,7 @@ if __name__ == '__main__':
     parser.add_argument('--patch', type=int, default=0, help='patch size used for patches-based inference. ') # patch 1000 and overlap 200
     parser.add_argument('--overlap', type=int, help='overlap length used for patches-based inference. Should be greater or equal to the biggest relevant object')
     parser.add_argument('--zoom',action="store_true", help='zoom or not to zoom [True/False]')
+    parser.add_argument('--zoom_object',type=str,default='object',help='enter object to zoom into')
     opt = parser.parse_args()
     # print(opt)
 
