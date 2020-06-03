@@ -8,6 +8,8 @@ from utils.utils import *
 import imutils
 import time
 
+from multiprocessing.dummy import Pool as ThreadPool
+
 # Tennis libraries
 from tennis.lib_patches import *
 from tennis.tennis import *
@@ -95,7 +97,7 @@ def detect(save_img=False):
     player = None
     # Prediction on raw image
     if (opt.patch == 0):
-
+        
         # Run inference
         t0 = time.time()
         # im0s -> real img
@@ -121,6 +123,7 @@ def detect(save_img=False):
             # Inference
             t1 = torch_utils.time_synchronized()
             pred = model(img, augment=opt.augment)[0]
+            # print(pred)
             t2 = torch_utils.time_synchronized()
 
             # to float
@@ -141,11 +144,11 @@ def detect(save_img=False):
                     p, s, im0 = path[i], '%g: ' % i, im0s[i]
                 else:
                     p, s, im0 = path, '', im0s
+                    zoom_im0 = im0.copy()
 
                 save_path = str(Path(out) / Path(p).name)
                 s += '%gx%g ' % img.shape[2:]  # print string
-                if det is not None and len(det): 
-                    # zoom = True # Trial  
+                if det is not None and len(det):   
                     # Rescale boxes from img_size to im0 size
                     det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
                     
@@ -176,13 +179,55 @@ def detect(save_img=False):
                                
                     # Update the player position and display the player bounding box on image
                     gameState.identifyPlayersAndPlot(im0,leftPersons, rightPersons, colors)
+                    # Update watch
+                    gameState.updateTimeWatch(im0, 60)
+                    
+                    def increase_brightness(img, value=30):
+                        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+                        h, s, v = cv2.split(hsv)
+
+                        lim = 255 - value
+                        v[v > lim] = 255
+                        v[v <= lim] += value
+
+                        final_hsv = cv2.merge((h, s, v))
+                        img = cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR)
+                        return img
+
+                    def getCroppedImage(img,centroid):
+                        if centroid[0]-200 < 0:
+                            xmin = 0
+                            xmax = 200*2
+                        elif centroid[0] + 200 > img.shape[1]:
+                            xmin = img.shape[1] - 200* 2
+                            xmax = img.shape[1]
+                        else:
+                            # todo max/min unecessary
+                            xmin = max(0, centroid[0] - 200)
+                            xmax = min(img.shape[1], centroid[0] + 200)
+                        
+                        if centroid[1] - 200 < 0:
+                            ymin = 0
+                            ymax = 100 * 2
+                        elif centroid[1] + 200 > img.shape[0]:
+
+                            ymin = img.shape[0] - 200*2
+                            ymax = img.shape[0]
+                        else:
+                            ymin = max(0, centroid[1] - 200)
+                            ymax = min(img.shape[0],centroid[1] + 200)
+
+                        # Crop a fixed size img using centroid
+
+                        return xmin ,xmax, ymin, ymax
 
                     # zoomin func
                     def zoomin(zoom,im0,xyxy,count):
-                        top_rows,top_cols,bottom_rows,bottom_cols = xyxy
+                        centroid = getRectCenter(xyxy)
+                        xmin,xmax,ymin,ymax = getCroppedImage(im0,centroid)
                         if zoom_object == 'object':
-                            crop = im0[int(top_rows):int(bottom_rows),int(top_cols):int(bottom_cols)]
-                            # crop = im0[int(top_rows):int(top_cols)+1000,int(top_cols):int(top_cols)+1000] 
+                            crop = im0[int(ymin):int(ymax),int(xmin):int(xmax)] 
+                            crop = increase_brightness(crop,value=20)
                             count += 1 
                             return zoom,crop,count
 
@@ -194,60 +239,61 @@ def detect(save_img=False):
                     
                     # "Smooth zoom to detection"
                     def zoom_player(zoom,player,xyxy,speed,shift=20):
-                        top_rows,top_cols,bottom_rows,bottom_cols = xyxy
+                        centroid = getRectCenter(xyxy)
+                        xmin,xmax,ymin,ymax = getCroppedImage(im0,centroid)
                         rows,cols,rgb = player.shape
-                        if rows > int(bottom_rows) and cols > int(bottom_cols):
+                        if rows > int(ymin) and cols > int(xmin):
                             speed += shift
                         else:
                             zoom = False
                             player = im0
+                            speed = 0
                             return zoom,player,speed
 
-                        if int(top_rows) < 1056 and int(top_cols) < 2517:
-                            frame = im0[int(top_rows):-speed,int(top_cols):-speed*2]
+                        if int(xmax) < 1056 and int(xmax) < 2517:
+                            frame = im0[int(xmax):-speed,int(xmax):-speed*2]
                             return zoom,frame,speed
-                        elif int(top_rows) > 1056 and int(top_cols) > 2517:
-                            frame = im0[speed:int(top_rows),speed*2:int(top_cols)] 
+                        elif int(xmax) > 1056 and int(xmax) > 2517:
+                            frame = im0[speed:int(xmax),speed*2:int(xmax)] 
                             return zoom,frame,speed
-                        elif int(top_cols) > 2517 and int(top_rows) < 1056:
-                            frame = im0[y:-speed,speed*2:int(top_cols)]
+                        elif int(xmax) > 2517 and int(xmax) < 1056:
+                            frame = im0[y:-speed,speed*2:int(xmax)]
                             return zoom,frame,speed
-                        elif int(top_cols) < 2517 and int(top_rows) > 1056:
-                            frame = im0[speed:int(top_rows),int(top_cols):-speed*2]
+                        elif int(xmax) < 2517 and int(ymax) > 1056:
+                            frame = im0[speed:int(ymax),int(xmax):-speed*2]
                             return zoom,frame,speed
-                        elif int(top_rows) > 1056:
+                        elif int(ymax) > 1056:
                             frame = im0[speed:,:]
                             return zoom,frame,speed
-                        elif int(top_rows) < 1056:
+                        elif int(ymax) < 1056:
                             frame = im0[:-speed,:]
                             return zoom,frame,speed
-                        elif int(top_cols) > 2517:
+                        elif int(xmax) > 2517:
                             frame = im0[:,speed:]
                             return zoom,frame,speed
-                        elif int(top_cols) < 2517:
+                        elif int(xmax) < 2517:
                             frame = im0[:,:-speed]
                             return zoom,frame,speed
                         
 
                         
                     # zoom stop count
-                    if count == 5:
-                        zoom,im0 = zoom_out(zoom,im0)
+                    if count == 400:
+                        zoom,zoom_im0 = zoom_out(zoom,im0)
                     # zoom in if flag triggered
                     elif zoom and zoom_object == "object":
-                        zoom,im0,count = zoomin(zoom,im0,gameState.players[0]["box"],count) #crop image
+                        zoom,zoom_im0,count = zoomin(zoom,zoom_im0,gameState.players[0]["box"],count) #crop image
+
                     # smootly zoom to player
                     elif zoom and zoom_object == 'player':
                         try:
-                            zoom,im0,speed = zoom_player(zoom,player,gameState.players[0]["box"],speed) 
-                            player = im0
+                            zoom,player,speed = zoom_player(zoom,player,gameState.players[0]["box"],speed) 
+                            player = zoom_im0.copy
                         except Exception as e:
                             print(e)
-                            zoom,im0,speed = zoom_player(zoom,im0,gameState.players[0]["box"],speed)
-                            player = im0
+                            zoom,player,speed = zoom_player(zoom,zoom_im0,gameState.players[0]["box"],speed)
                     
-                    # Update watch
-                    gameState.updateTimeWatch(im0, 60)
+                    
 
 
                     """
@@ -275,7 +321,9 @@ def detect(save_img=False):
 
                 # Stream results
                 if view_img:
-                    im0_resized = imutils.resize(im0, width=1920)
+                    w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                    h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                    im0_resized = imutils.resize(zoom_im0, width=720,height=1280)
                     cv2.imshow(p, im0_resized)
                     #cv2.waitKey(0)
                     if cv2.waitKey(1) == ord('q'):  # q to quit
@@ -292,13 +340,15 @@ def detect(save_img=False):
                                 vid_writer.release()  # release previous video writer
 
                             fps = vid_cap.get(cv2.CAP_PROP_FPS)
+                            SlowM_80 = 12
+                            SlowM_20 = 48
                             w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                             h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (w, h))
+                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
                         if zoom:
-                            vid_writer.write(im0)
-                            vid_writer.write(im0)
-                        vid_writer.write(im0)
+                            vid_writer.write(zoom_im0)
+                            vid_writer.write(zoom_im0)
+                        vid_writer.write(zoom_im0)
 
         if save_txt or save_img:
             # print('Results saved to %s' % os.getcwd() + os.sep + out)
@@ -406,7 +456,9 @@ def detect(save_img=False):
 
             # Stream results
             if view_img:
-                fullImg_resized = imutils.resize(fullImg, width=1920)
+                w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+                h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+                fullImg_resized = imutils.resize(fullImg, width=720,height=1280)
                 cv2.imshow(p, fullImg_resized)
                 if cv2.waitKey(1) == ord('q'):  # q to quit
                     raise StopIteration
@@ -421,6 +473,7 @@ def detect(save_img=False):
                             vid_writer.release()  # release previous video writer
 
                         fps = vid_cap.get(cv2.CAP_PROP_FPS)
+                        SlowM_80 = 12
                         w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                         h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                         vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (w, h))
