@@ -249,31 +249,32 @@ def detect(save_img=False):
                             player = im0
                             speed = 0
                             return zoom,player,speed
-
-                        if int(xmax) < 1056 and int(xmax) < 2517:
-                            frame = im0[int(xmax):-speed,int(xmax):-speed*2]
-                            return zoom,frame,speed
-                        elif int(xmax) > 1056 and int(xmax) > 2517:
-                            frame = im0[speed:int(xmax),speed*2:int(xmax)] 
-                            return zoom,frame,speed
-                        elif int(xmax) > 2517 and int(xmax) < 1056:
-                            frame = im0[y:-speed,speed*2:int(xmax)]
-                            return zoom,frame,speed
-                        elif int(xmax) < 2517 and int(ymax) > 1056:
-                            frame = im0[speed:int(ymax),int(xmax):-speed*2]
-                            return zoom,frame,speed
-                        elif int(ymax) > 1056:
-                            frame = im0[speed:,:]
-                            return zoom,frame,speed
-                        elif int(ymax) < 1056:
-                            frame = im0[:-speed,:]
-                            return zoom,frame,speed
-                        elif int(xmax) > 2517:
-                            frame = im0[:,speed:]
-                            return zoom,frame,speed
-                        elif int(xmax) < 2517:
-                            frame = im0[:,:-speed]
-                            return zoom,frame,speed
+                        frame = player[speed:int(xmax),speed:int(ymax)]
+                        return zoom,frame,speed
+                        # if int(xmax) < 1056 and int(xmax) < 2517:
+                        #     frame = player[int(xmax):-speed,int(xmax):-speed*2]
+                        #     return zoom,frame,speed
+                        # elif int(xmax) > 1056 and int(xmax) > 2517:
+                        #     frame = player[speed:int(xmax),speed*2:int(xmax)] 
+                        #     return zoom,frame,speed
+                        # elif int(xmax) > 2517 and int(xmax) < 1056:
+                        #     frame = player[y:-speed,speed*2:int(xmax)]
+                        #     return zoom,frame,speed
+                        # elif int(xmax) < 2517 and int(ymax) > 1056:
+                        #     frame = player[speed:int(ymax),int(xmax):-speed*2]
+                        #     return zoom,frame,speed
+                        # elif int(ymax) > 1056:
+                        #     frame = player[speed:,:]
+                        #     return zoom,frame,speed
+                        # elif int(ymax) < 1056:
+                        #     frame = player[:-speed,:]
+                        #     return zoom,frame,speed
+                        # elif int(xmax) > 2517:
+                        #     frame = player[:,speed:]
+                        #     return zoom,frame,speed
+                        # elif int(xmax) < 2517:
+                        #     frame = player[:,:-speed]
+                        #     return zoom,frame,speed
                         
 
                         
