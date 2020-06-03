@@ -87,8 +87,12 @@ def detect(save_img=False):
     names = load_classes(opt.names)
     colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(names))]
 
-    # SM count
+    # SlowMotion count
     count = 0
+    # Smooth player speed
+    speed = 0
+    # player shifted frame
+    player = None
     # Prediction on raw image
     if (opt.patch == 0):
 
@@ -181,18 +185,66 @@ def detect(save_img=False):
                             # crop = im0[int(top_rows):int(top_cols)+1000,int(top_cols):int(top_cols)+1000] 
                             count += 1 
                             return zoom,crop,count
+
                     # zoom out func
                     def zoom_out(zoom,im0):
                         crop = im0[:,:]
                         zoom = False
                         return zoom,crop
+                    
+                    # "Smooth zoom to detection"
+                    def zoom_player(zoom,player,xyxy,speed,shift=20):
+                        top_rows,top_cols,bottom_rows,bottom_cols = xyxy
+                        rows,cols,rgb = player.shape
+                        if rows > int(bottom_rows) and cols > int(bottom_cols):
+                            speed += shift
+                        else:
+                            zoom = False
+                            player = im0
+                            return zoom,player,speed
+
+                        if int(top_rows) < 1056 and int(top_cols) < 2517:
+                            frame = im0[int(top_rows):-speed,int(top_cols):-speed*2]
+                            return zoom,frame,speed
+                        elif int(top_rows) > 1056 and int(top_cols) > 2517:
+                            frame = im0[speed:int(top_rows),speed*2:int(top_cols)] 
+                            return zoom,frame,speed
+                        elif int(top_cols) > 2517 and int(top_rows) < 1056:
+                            frame = im0[y:-speed,speed*2:int(top_cols)]
+                            return zoom,frame,speed
+                        elif int(top_cols) < 2517 and int(top_rows) > 1056:
+                            frame = im0[speed:int(top_rows),int(top_cols):-speed*2]
+                            return zoom,frame,speed
+                        elif int(top_rows) > 1056:
+                            frame = im0[speed:,:]
+                            return zoom,frame,speed
+                        elif int(top_rows) < 1056:
+                            frame = im0[:-speed,:]
+                            return zoom,frame,speed
+                        elif int(top_cols) > 2517:
+                            frame = im0[:,speed:]
+                            return zoom,frame,speed
+                        elif int(top_cols) < 2517:
+                            frame = im0[:,:-speed]
+                            return zoom,frame,speed
+                        
+
                         
                     # zoom stop count
                     if count == 5:
                         zoom,im0 = zoom_out(zoom,im0)
                     # zoom in if flag triggered
-                    elif zoom:
+                    elif zoom and zoom_object == "object":
                         zoom,im0,count = zoomin(zoom,im0,gameState.players[0]["box"],count) #crop image
+                    # smootly zoom to player
+                    elif zoom and zoom_object == 'player':
+                        try:
+                            zoom,im0,speed = zoom_player(zoom,player,gameState.players[0]["box"],speed) 
+                            player = im0
+                        except Exception as e:
+                            print(e)
+                            zoom,im0,speed = zoom_player(zoom,im0,gameState.players[0]["box"],speed)
+                            player = im0
                     
                     # Update watch
                     gameState.updateTimeWatch(im0, 60)
