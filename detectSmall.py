@@ -87,6 +87,8 @@ def detect(save_img=False):
     names = load_classes(opt.names)
     colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(names))]
 
+    # SM count
+    count = 0
     # Prediction on raw image
     if (opt.patch == 0):
 
@@ -171,45 +173,26 @@ def detect(save_img=False):
                     # Update the player position and display the player bounding box on image
                     gameState.identifyPlayersAndPlot(im0,leftPersons, rightPersons, colors)
 
-                    def zoomin(zoom,im0,xyxy,speed=10):
-                        print(xyxy)
+                    # zoomin func
+                    def zoomin(zoom,im0,xyxy,count):
                         top_rows,top_cols,bottom_rows,bottom_cols = xyxy
                         if zoom_object == 'object':
                             crop = im0[int(top_rows):int(bottom_rows),int(top_cols):int(bottom_cols)]
-                        # elif zoom_object == 'player':
-                        #     if top_rows < 1056 and top_cols < 2517:
-                        #         crop = im0[top_rows:-speed,top_cols:-speed*2]
-                        #         return zoom,crop
-                        #     elif top_rows > 1056 and top_cols > 2517:
-                        #         crop = im0[speed:top_rows,speed*2:top_cols] 
-                        #         return zoom,crop
-                        #     elif top_cols > 2517 and top_rows < 1056:
-                        #         crop = im0[top_rows:-speed,speed*2:top_cols]
-                        #         return zoom,crop
-                        #     elif top_cols < 2517 and top_rows > 1056:
-                        #         crop = im0[speed:top_rows,top_cols:-speed*2]
-                        #         return zoom,crop
-                        #     elif top_rows > 1056:
-                        #         crop = im0[speed:,:]
-                        #         return zoom,crop
-                        #     elif top_rows < 1056:
-                        #         crop = im0[:-speed,:]
-                        #         return zoom,crop
-                        #     elif top_cols > 2517:
-                        #         crop = im0[:,speed:]
-                        #         return zoom,crop
-                        #     elif top_cols < 2517:
-                        #         crop = im0[:,:-speed]
-                        #         return zoom,crop
-                        if not zoom:
-                            crop = im0[:,:]
-                            return zoom,crop
+                            # crop = im0[int(top_rows):int(top_cols)+1000,int(top_cols):int(top_cols)+1000] 
+                            count += 1 
+                            return zoom,crop,count
+                    # zoom out func
+                    def zoom_out(zoom,im0):
+                        crop = im0[:,:]
+                        zoom = False
                         return zoom,crop
                         
-
+                    # zoom stop count
+                    if count == 5:
+                        zoom,im0 = zoom_out(zoom,im0)
                     # zoom in if flag triggered
-                    if zoom:
-                        zoom,im0 = zoomin(zoom,im0,gameState.players[0]["box"]) #crop image
+                    elif zoom:
+                        zoom,im0,count = zoomin(zoom,im0,gameState.players[0]["box"],count) #crop image
                     
                     # Update watch
                     gameState.updateTimeWatch(im0, 60)
@@ -421,7 +404,7 @@ if __name__ == '__main__':
     parser.add_argument('--patch', type=int, default=0, help='patch size used for patches-based inference. ') # patch 1000 and overlap 200
     parser.add_argument('--overlap', type=int, help='overlap length used for patches-based inference. Should be greater or equal to the biggest relevant object')
     parser.add_argument('--zoom',action="store_true", help='zoom or not to zoom [True/False]')
-    parser.add_argument('--zoom_object',type=str,default='object',help='enter object to zoom into')
+    parser.add_argument('--zoom_object',type=str,default='object',help='enter object to zoom into[object/player]')
     opt = parser.parse_args()
     # print(opt)
 
