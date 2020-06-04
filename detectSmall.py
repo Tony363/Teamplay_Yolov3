@@ -275,15 +275,27 @@ def detect(save_img=False):
                         # elif int(xmax) < 2517:
                         #     frame = player[:,:-speed]
                         #     return zoom,frame,speed
-                        
 
+                    def zoom_ball1(zoom,frame, count):
+                        fps = vid_cap.get(cv2.CAP_PROP_FPS)
+                        ball_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
+                        if count > 85 and count < 110:
+                            print("success",count)
+                            crop = frame[1000:1500,3800:4200] 
+                            crop = increase_brightness(crop,value=20)
+                            count += 1 
+                            ball_writer.write(crop)
+                            return zoom,crop,count
+                        count+=1
+                        return zoom,frame,count
+                   
                         
                     # zoom stop count
-                    if count == 400:
+                    if count == 140:
                         zoom,zoom_im0 = zoom_out(zoom,im0)
                     # zoom in if flag triggered
                     elif zoom and zoom_object == "object":
-                        zoom,zoom_im0,count = zoomin(zoom,zoom_im0,gameState.players[0]["box"],count) #crop image
+                        zoom,zoom_im0,count = zoomin(zoom,zoom_im0,count) #crop image
 
                     # smootly zoom to player
                     elif zoom and zoom_object == 'player':
@@ -293,7 +305,8 @@ def detect(save_img=False):
                         except Exception as e:
                             print(e)
                             zoom,player,speed = zoom_player(zoom,zoom_im0,gameState.players[0]["box"],speed)
-                    
+                    elif zoom and zoom_object == 'ball':
+                        zoom, zoom_im0,count = zoom_ball1(zoom,zoom_im0,count)
                     
 
 
@@ -322,9 +335,7 @@ def detect(save_img=False):
 
                 # Stream results
                 if view_img:
-                    w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                    h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                    im0_resized = imutils.resize(zoom_im0, width=720,height=1280)
+                    im0_resized = imutils.resize(zoom_im0, width=1080,height=1920)
                     cv2.imshow(p, im0_resized)
                     #cv2.waitKey(0)
                     if cv2.waitKey(1) == ord('q'):  # q to quit
@@ -348,8 +359,9 @@ def detect(save_img=False):
                             vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
                         if zoom:
                             vid_writer.write(zoom_im0)
-                            vid_writer.write(zoom_im0)
                         vid_writer.write(zoom_im0)
+                    if cv2.waitKey(1) == ord('q'):  # q to quit
+                        raise StopIteration
 
         if save_txt or save_img:
             # print('Results saved to %s' % os.getcwd() + os.sep + out)
@@ -457,9 +469,7 @@ def detect(save_img=False):
 
             # Stream results
             if view_img:
-                w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                fullImg_resized = imutils.resize(fullImg, width=720,height=1280)
+                fullImg_resized = imutils.resize(fullImg, width=1080,height=1920)
                 cv2.imshow(p, fullImg_resized)
                 if cv2.waitKey(1) == ord('q'):  # q to quit
                     raise StopIteration
@@ -510,7 +520,7 @@ if __name__ == '__main__':
     parser.add_argument('--patch', type=int, default=0, help='patch size used for patches-based inference. ') # patch 1000 and overlap 200
     parser.add_argument('--overlap', type=int, help='overlap length used for patches-based inference. Should be greater or equal to the biggest relevant object')
     parser.add_argument('--zoom',action="store_true", help='zoom or not to zoom [True/False]')
-    parser.add_argument('--zoom_object',type=str,default='object',help='enter object to zoom into[object/player]')
+    parser.add_argument('--zoom_object',type=str,default='object',help='enter object to zoom into[object/player/ball]')
     opt = parser.parse_args()
     # print(opt)
 
