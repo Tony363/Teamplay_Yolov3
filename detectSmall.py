@@ -277,25 +277,32 @@ def detect(save_img=False):
                         #     return zoom,frame,speed
 
                     def zoom_ball1(zoom,frame, count):
-                        fps = vid_cap.get(cv2.CAP_PROP_FPS)
-                        ball_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
-                        if count > 85 and count < 110:
-                            print("success",count)
-                            crop = frame[1000:1500,3800:4200] 
-                            crop = increase_brightness(crop,value=20)
-                            count += 1 
-                            ball_writer.write(crop)
-                            return zoom,crop,count
-                        count+=1
-                        return zoom,frame,count
-                   
+                        # if count > 85 and count < 110:
+                        crop = frame[1000:1400,3800:4200] 
+                        crop = increase_brightness(crop,value=20)
+                        count += 1 
+                        if count > 93 and count < 100:
+                            circle = cv2.circle(crop,(232,183),radius=3,color=(45, 255, 255),thickness=-1)
+                            return zoom,circle,count
+                        return zoom,crop,count
+                    
+                    def zoom_impact(zoom,frame,count):
+                        crop = frame[1160:1240,4020:4050]
+                        crop = increase_brightness(crop,value=20)
+                        count += 1 
+                        (h, w) = crop.shape[:2]
+                        # if count > 93 and count < 100:
+                        circle = cv2.rectangle(crop,(20,2),(60,8),color=(0,0,0),thickness=-1)
+                            # return zoom,circle,count
+                        return zoom,circle,count
+                                      
                         
                     # zoom stop count
                     if count == 140:
                         zoom,zoom_im0 = zoom_out(zoom,im0)
                     # zoom in if flag triggered
                     elif zoom and zoom_object == "object":
-                        zoom,zoom_im0,count = zoomin(zoom,zoom_im0,count) #crop image
+                        zoom,zoom_im0,count = zoomin(zoom,zoom_im0,gameState.players[0]['box'],count) #crop image
 
                     # smootly zoom to player
                     elif zoom and zoom_object == 'player':
@@ -307,6 +314,8 @@ def detect(save_img=False):
                             zoom,player,speed = zoom_player(zoom,zoom_im0,gameState.players[0]["box"],speed)
                     elif zoom and zoom_object == 'ball':
                         zoom, zoom_im0,count = zoom_ball1(zoom,zoom_im0,count)
+                    elif zoom and zoom_object == 'impact':
+                        zoom,zoom_im0,count = zoom_impact(zoom,zoom_im0,count)
                     
 
 
@@ -357,9 +366,17 @@ def detect(save_img=False):
                             w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                             h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                             vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
+
+                       
                         if zoom:
                             vid_writer.write(zoom_im0)
+                            vid_writer.write(zoom_im0)
+                            vid_writer.write(zoom_im0)
+                            vid_writer.write(zoom_im0)
+                            vid_writer.write(zoom_im0)
+                            vid_writer.write(zoom_im0)
                         vid_writer.write(zoom_im0)
+
                     if cv2.waitKey(1) == ord('q'):  # q to quit
                         raise StopIteration
 
