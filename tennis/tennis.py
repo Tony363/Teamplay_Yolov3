@@ -113,6 +113,8 @@ class TennisState:
         self.trainingBalls = [] # (xA, yA, xB, yB) - Store in memory training balls in the FIRST frame to avoid tracking on them
         self.lastFrameBalls = [] # Store last frame balls position to display only moving ball in the current frame
         self.currentFrameBalls = []
+        self.lastFrameContours = [] # Store last frame contours to remove slow moving contour which is not considered as ball
+        self.currentFrameContours = []
 
         # Patch inference variables
         self.lastFrameBallsPatch = 30 * [[]] # 30 patch # element i : lastFrameBalls of patch i
@@ -121,7 +123,8 @@ class TennisState:
         # Game timer
         self.timeWatch = 0
 
-        
+        # Motion detector limit
+        self.motionDetectionCorners = 0
 
 
     # Update the player distance based on the new bouding rectangle
@@ -203,7 +206,8 @@ class TennisState:
         tf = max(tl - 1, 1)  # font thickness
         cv2.putText(img, strTime, (int(img.shape[1] / 2) - 200, 300), cv2.FONT_HERSHEY_SIMPLEX, tl / 4, [0, 255, 255], thickness=int(tf/2), lineType=cv2.LINE_AA)
 
-
+    # Update the ball position and display its tracing using previous frames ball position
+    # This method use contours detected by motion
     def updateBallPositionFromMotion(self,img, contours, startFrame):
         imageHeight = img.shape[0]
         imageWidth = img.shape[1]
@@ -212,31 +216,33 @@ class TennisState:
         ballDistance = 0 # distance  metric to find the right ball among the potential balls
         potentialBalls = [] # store all potential balls detected by motion detection
 
-        #TODO : check ball thresh
+        
         # Initialize threshold for ball area
         if imageWidth <= 1920:
             ballAreaThres = 1400
             ballDistanceThres = 100
         else:
             ballAreaThres = 14500
-            ballDistanceThres = 700
+            ballDistanceThres = 500
 
         # Calculate (x,y) position of motion boxes
         for _, contour in enumerate(contours):
             area = cv2.contourArea(contour)
-            print(area)
+            print("[INFO] Detected Area : {}".format(area))
             x,y,w,h = cv2.boundingRect(contour)
             rectCenter = (x + int(w / 2), y + int(h/2))
 
             # Check if motion box center is in the court rectangle
             # TODO :  getTennisCourt function. Temporary court rectangle will be manually fix.
-            courtX, courtY, courtX2, courtY2 = 200, int(7*imageHeight / 24), imageWidth -200, 6 * int(imageHeight/7)
-            imgRect = cv2.rectangle(img,  (courtX, courtY), (courtX2,courtY2),[255,0,0], 2 )
+            courtX, courtY, courtX2, courtY2 = self.motionDetectionCorners
+            imgRect = cv2.rectangle(img,  (courtX, courtY), (courtX2,courtY2),[155,0,0], 2 )
 
             if isInRectangle(rectCenter,courtX, courtY, courtX2, courtY2):
 
                 # Display all objects detected in the court
                 imgRect = cv2.rectangle(img,(x,y), (x+w, y+h), (255,0,0),2)
+                # Save contour position
+                self.currentFrameContours.append( (x,y,x+w,y+h))
 
                 if(startFrame > START_BALL_TRACK_FRAME):
 
@@ -288,13 +294,15 @@ class TennisState:
         # NB : instead of distance IoU could be used if we were detecting ball specifically but as we detect motion, the ball can be hidden my moving players.
         
         if self.ball["box"] != (0,0,0,0):
-            
+            # Remove potential balls that have same position as the latest detected.
+            potentialBalls = [ ball for ball in potentialBalls if distance(getRectCenter(self.ball["box"]), getRectCenter(ball)) > 10 ]
+
             if potentialBalls != []:
                 print("Potential balls {}".format(potentialBalls))
-                print(getRectCenter(potentialBalls[0]))
-                print(getRectCenter(self.ball["box"]))
+                
+                # Choose the detected ball which is closest to the latest detected ball
                 minDistanceBall = min(potentialBalls, key = lambda ball: distance(getRectCenter(self.ball["box"]), getRectCenter(ball)))
-                print("Distance MIN : {}".format(distance(getRectCenter(minDistanceBall), getRectCenter(self.ball["box"]))))
+                print("[INFO] Min distance of closest ball : {}".format(distance(getRectCenter(minDistanceBall), getRectCenter(self.ball["box"]))))
                 # if the min distance is low enough. (assume it is the real ball)
                 if distance(getRectCenter(minDistanceBall), getRectCenter(self.ball["box"])) < ballDistanceThres:
                     self.ball["box"] = minDistanceBall
@@ -306,16 +314,15 @@ class TennisState:
                     if (self.balls.list != []):
                         self.balls.pop()
 
-            #draw last ball
-            #imgRect = cv2.rectangle(imgRect,(self.ball["box"][0],self.ball["box"][1]), (self.ball["box"][2], self.ball["box"][3]), (0,255,255),2)        
-
             # Draw ball tracing
             for ball in self.balls.list:
                 (x,y) = getRectCenter(ball)
                 print("[BALL INFO] ({}, {})".format(x,y))
-                img = cv2.circle(img,(x,y), 5, (0,255,255), 2)
+                img = cv2.circle(img,(x,y), 4, (0,255,255), 3)
 
-
+        # Update frame detected contours
+        self.lastFrameContours = self.currentFrameContours
+        self.currentFrameContours = []
 
     # Clear object detections to keep only relevant detections with rules ( 2 players and 1 ball)
     # Return True if the object need to be displayed through detectSmall.py
@@ -421,9 +428,11 @@ class TennisState:
         return True
 
 
-
-def getMotionContours(img, background=False):
-      
+# Use background substraction with predefined and configurable kernels to detect motion.
+# arg -motionDetectionCorners speed up the detection by applying the detection only on a cropped sub-image. It can divide the processing time up to 2 times faster if used correctly.
+# Returns detected contours
+def getMotionContours(img, background=False, motionDetectionCorners = None):
+    
     # Kernels used for erosion and dilation masks
     if (img.shape[1] <= 1920):
         kernelErosionSize = (3,3)
@@ -432,11 +441,17 @@ def getMotionContours(img, background=False):
         kernelDilationSize = (25,36)
         kernelDilation =  cv2.getStructuringElement(cv2.MORPH_RECT, kernelDilationSize) # Rectangular shape with height > width to better find players
     else:
-        kernelErosionSize = (12,12)
+        kernelErosionSize = (10,10)
         kernelErosion = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, kernelErosionSize)
 
-        kernelDilationSize = (75,108)
+        kernelDilationSize = (75,120)
         kernelDilation =  cv2.getStructuringElement(cv2.MORPH_RECT, kernelDilationSize) # Rectangular shape with height > width to better find players
+
+
+    # Initialize the motion detector corners limit.
+    if motionDetectionCorners != None:
+        x,y,xx,yy = motionDetectionCorners
+        img=img[y:yy,x:xx]
 
     # Apply background subtractor to get initial foreground mask
     fgMask = bgSubstractor.apply(img); 
@@ -456,6 +471,12 @@ def getMotionContours(img, background=False):
 
     # Draw contours from the mask to get motion boxes
     contours, hierarchy = cv2.findContours(dilatedMask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+    
+    # relocate the contours position by adding the original image offse
+    if contours!= [] and motionDetectionCorners != None :       
+        # relocate the contours position by adding the original image offset
+        contours = [ np.asarray([ [truepoint + [x,y] for truepoint in point] for point in contour]) for contour in contours]
+            
     return contours
 
 # We extract the tennis court using the dominant color in the center of the image.
@@ -540,9 +561,9 @@ def detectTennisCourt(img, plot = False, offset = 100):
     corners = getCornersFromContour(contour)
     if corners is not None:
         corners = corners.reshape(4,1,2)
-        cv2.drawContours(img, corners, -1, (0, 0, 255), 10)
+        cv2.drawContours(img, corners, -1, (0, 0, 255), 20)
         im = imutils.resize(img, width=1920)
-        cv2.imshow("CORNERS", im)
+        cv2.imshow("Court detection", im)
 
     # Find contours Vertices (corners)
     # todo : check houghlines transform if can be used on non linear plan

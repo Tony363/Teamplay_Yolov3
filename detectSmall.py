@@ -27,7 +27,7 @@ def detect(save_img=False):
 
 
     # Initialize Tennis State
-    gameState = TennisState(maxBalls = 5)
+    gameState = TennisState(maxBalls = 8)
     readFrame = 0
 
     # Initialize model
@@ -107,6 +107,8 @@ def detect(save_img=False):
                 print("Scale distance :  {}".format(gameState.scaleDistance) )
                 gameState.leftHeartRates, gameState.rightHeartRates = readHeartRate(totalFrames, fps)
                 print("Video total number of frames : {}".format(int(vid_cap.get(cv2.CAP_PROP_FRAME_COUNT))))
+                gameState.motionDetectionCorners = (200, int(7*im0s.shape[0] / 24), im0s.shape[1] -200, 6 * int(im0s.shape[0]/7))
+                print("Motion Detection left-top corners : {}, {}".format(200,int(7*im0s.shape[0] / 24)))
 
             # Allocate the image tensor to the chosen device
             img = torch.from_numpy(img).to(device)
@@ -173,8 +175,13 @@ def detect(save_img=False):
                             #plot_one_box(xyxy, im0, label=label, color=colors[int(cls)])
 
                     # Update the ball position and trace
-                    #gameState.updateBallPositionFromMotion(im0, getMotionContours(im0Copy,True),readFrame)
-                    
+                    if( opt.tracing and readFrame > START_BALL_TRACK_FRAME):
+                        startBall = torch_utils.time_synchronized()
+                        contours = getMotionContours(im0Copy,True,gameState.motionDetectionCorners)
+                        gameState.updateBallPositionFromMotion(im0, contours,readFrame)
+                        endBall = torch_utils.time_synchronized()
+                        print("[INFO] Updated ball position. ({:.3f}s)".format(endBall - startBall))
+
                     # Update the player last hit speed
                     gameState.updateHitSpeed(im0,readFrame)
 
@@ -391,6 +398,7 @@ if __name__ == '__main__':
     parser.add_argument('--augment', action='store_true', help='augmented inference')
     parser.add_argument('--patch', type=int, default=0, help='patch size used for patches-based inference. ') # patch 1000 and overlap 200
     parser.add_argument('--overlap', type=int, help='overlap length used for patches-based inference. Should be greater or equal to the biggest relevant object')
+    parser.add_argument('--tracing', action='store_true', help='Enable ball tracing')
     opt = parser.parse_args()
     print(opt)
 
