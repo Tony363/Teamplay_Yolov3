@@ -230,6 +230,11 @@ def detect(save_img=False):
                             crop = increase_brightness(crop,value=20)
                             count += 1 
                             return zoom,crop,count
+                        if zoom_object == 'player':
+                            pass
+                        if zoom_object == 'ball':
+                            pass
+
 
                     # zoom out func
                     def zoom_out(zoom,im0):
@@ -287,14 +292,14 @@ def detect(save_img=False):
                         return zoom,crop,count
                     
                     def zoom_impact(zoom,frame,count):
-                        crop = frame[1160:1240,4020:4050]
+                        crop = frame[1160:1190,4020:4070]
                         crop = increase_brightness(crop,value=20)
                         count += 1 
                         (h, w) = crop.shape[:2]
-                        # if count > 93 and count < 100:
-                        circle = cv2.rectangle(crop,(20,2),(60,8),color=(0,0,0),thickness=-1)
-                            # return zoom,circle,count
-                        return zoom,circle,count
+                        if count > 93 and count < 140:                      
+                            ellipse = cv2.ellipse(crop,(w//2,h//2),(10,5),0,1,360,color=(45,255,255),thickness=-1)
+                            return zoom,ellipse,count
+                        return zoom,crop,count
                                       
                         
                     # zoom stop count
@@ -369,6 +374,9 @@ def detect(save_img=False):
 
                        
                         if zoom:
+                            vid_writer.write(zoom_im0)
+                            vid_writer.write(zoom_im0)
+                            vid_writer.write(zoom_im0)
                             vid_writer.write(zoom_im0)
                             vid_writer.write(zoom_im0)
                             vid_writer.write(zoom_im0)
