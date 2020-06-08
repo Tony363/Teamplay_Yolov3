@@ -2,6 +2,8 @@ import numpy as np
 import cv2
 import glob
 import argparse
+import imutils
+
 # from calibration_store import save_coefficients
 
 # termination criteria
@@ -65,6 +67,38 @@ def load_coefficients(path):
     cv_file.release()
     return [camera_matrix, dist_matrix]
 
+def undistortimg(mtx,dist,write=False):
+    cap = cv2.VideoCapture('input_vid/undistort.mp4')
+    ret,frame = cap.read()
+    fourcc = cv2.VideoWriter_fourcc(*'XVID') 
+    out = cv2.VideoWriter('output.avi', fourcc, 20.0, (1980,720))
+        
+    while True:
+        ret,frame = cap.read()
+        if ret:
+            h,  w = frame.shape[:2] 
+            newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
+            mapx,mapy = cv2.initUndistortRectifyMap(mtx,dist,None,newcameramtx,(w,h),5)
+            dst = cv2.remap(frame,mapx,mapy,cv2.INTER_LINEAR)
+            x,y,w,h = roi
+            dst = dst[y:y+h, x:x+w]
+            try:
+                resized = cv2.resize(dst,(1980, 720))
+            except Exception as e:
+                print(e)
+                pass
+            if not write:
+                cv2.imshow('frame',resized)
+                cv2.waitKey()
+            if write:
+                out.write(resized)
+        else:
+            print("end of video")
+            break
+   
+    out.release()
+    cap.release()
+    cv2.destroyAllWindows()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Camera calibration')
@@ -75,8 +109,29 @@ if __name__ == '__main__':
     parser.add_argument('--width', type=int, required=False, help='chessboard width size, default is 9')
     parser.add_argument('--height', type=int, required=False, help='chessboard height size, default is 6')
     parser.add_argument('--save_file', type=str, required=True, help='YML file to save calibration matrices')
-
+    parser.add_argument('--view_vid',action='store_true',help='view video')
+    parser.add_argument('--write_vid',action='store_true',help='write video to file')
     args = parser.parse_args()
     ret, mtx, dist, rvecs, tvecs = calibrate(args.image_dir, args.prefix, args.image_format, args.square_size, args.width, args.height)
     save_coefficients(mtx, dist, args.save_file)
     print("Calibration is finished. RMS: ", ret)
+
+    img = cv2.imread('chess/2025.jpg')
+    h,  w = img.shape[:2]
+    newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
+
+    # undistort
+    mapx,mapy = cv2.initUndistortRectifyMap(mtx,dist,None,newcameramtx,(w,h),5)
+    dst = cv2.remap(img,mapx,mapy,cv2.INTER_LINEAR)
+
+    # crop the image
+    x,y,w,h = roi
+    dst = dst[y:y+h, x:x+w]
+   
+    cv2.imwrite('chessboardout/2025result.jpg',dst)
+
+    if args.view_vid:
+        undistortimg(mtx,dist)
+    elif args.write_vid:
+        undistortimg(mtx,dist,args.write_vid)
+    

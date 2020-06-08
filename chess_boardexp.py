@@ -18,7 +18,7 @@ objp[:,:2] = np.mgrid[0:x,0:y].T.reshape(-1,2)
 objpoints = [] # 3d point in real world space
 imgpoints = [] # 2d points in image plane.
 
-images = glob.glob('chessboards/*.jpg')
+images = glob.glob('chess/*.jpg')
 
 for fname in images:
     img = cv2.imread(fname)
@@ -36,21 +36,25 @@ for fname in images:
 
         # Draw and display the corners
         img = cv2.drawChessboardCorners(img, (x,y), corners2,ret)
-        cv2.imshow('img', img)
+        resized = imutils.resize(img, width=1080,height=1920)
+        cv2.imshow('img', resized)
         cv2.waitKey(500)
 
 cv2.destroyAllWindows()
 
 ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
-img = cv2.imread('chessboards/tennis.jpg')
+
+img = cv2.imread('chess/tennis.jpg')
 h,  w = img.shape[:2]
 newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
+
 # undistort
 mapx,mapy = cv2.initUndistortRectifyMap(mtx,dist,None,newcameramtx,(w,h),5)
+# print(mapx, mapy)
 dst = cv2.remap(img,mapx,mapy,cv2.INTER_LINEAR)
 
 # crop the image
 x,y,w,h = roi
 dst = dst[y:y+h, x:x+w]
 fullImg_resized = imutils.resize(dst, width=1080,height=1920)
-cv2.imwrite('chessboardout/calibresult.jpg',fullImg_resized)
+cv2.imwrite('chessboardout/1result.jpg',fullImg_resized)
