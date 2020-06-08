@@ -170,15 +170,15 @@ def detect(save_img=False):
                                 rightPersons.append((xyxy,conf,cls))
 
                         # Plot any other detected objects
-                        elif names[int(cls)] != "person":
+                        elif names[int(cls)] != "person" and opt.show:
                             label = '%s %.2f' % (names[int(cls)], conf)
-                            #plot_one_box(xyxy, im0, label=label, color=colors[int(cls)])
+                            plot_one_box(xyxy, im0, label=label, color=colors[int(cls)])
 
                     # Update the ball position and trace
                     if( opt.tracing and readFrame > START_BALL_TRACK_FRAME):
                         startBall = torch_utils.time_synchronized()
                         contours = getMotionContours(im0Copy,True,gameState.motionDetectionCorners)
-                        gameState.updateBallPositionFromMotion(im0, contours,readFrame)
+                        gameState.updateBallPositionFromMotion(im0, contours,readFrame, showContours = opt.contours)
                         endBall = torch_utils.time_synchronized()
                         print("[INFO] Updated ball position. ({:.3f}s)".format(endBall - startBall))
 
@@ -399,6 +399,8 @@ if __name__ == '__main__':
     parser.add_argument('--patch', type=int, default=0, help='patch size used for patches-based inference. ') # patch 1000 and overlap 200
     parser.add_argument('--overlap', type=int, help='overlap length used for patches-based inference. Should be greater or equal to the biggest relevant object')
     parser.add_argument('--tracing', action='store_true', help='Enable ball tracing')
+    parser.add_argument('--show', action='store_true', help='Enable bounding boxes display from object detection')
+    parser.add_argument('--contours', action='store_true', help='Enable contours display from motion detection')
     opt = parser.parse_args()
     print(opt)
 

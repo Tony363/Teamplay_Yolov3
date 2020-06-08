@@ -208,7 +208,7 @@ class TennisState:
 
     # Update the ball position and display its tracing using previous frames ball position
     # This method use contours detected by motion
-    def updateBallPositionFromMotion(self,img, contours, startFrame):
+    def updateBallPositionFromMotion(self,img, contours, startFrame, showContours = False):
         imageHeight = img.shape[0]
         imageWidth = img.shape[1]
         
@@ -235,12 +235,14 @@ class TennisState:
             # Check if motion box center is in the court rectangle
             # TODO :  getTennisCourt function. Temporary court rectangle will be manually fix.
             courtX, courtY, courtX2, courtY2 = self.motionDetectionCorners
-            imgRect = cv2.rectangle(img,  (courtX, courtY), (courtX2,courtY2),[155,0,0], 2 )
+            if showContours:
+                imgRect = cv2.rectangle(img,  (courtX, courtY), (courtX2,courtY2),[155,0,0], 2 )
 
             if isInRectangle(rectCenter,courtX, courtY, courtX2, courtY2):
 
                 # Display all objects detected in the court
-                imgRect = cv2.rectangle(img,(x,y), (x+w, y+h), (255,0,0),2)
+                if showContours:
+                    imgRect = cv2.rectangle(img,(x,y), (x+w, y+h), (255,0,0),2)
                 # Save contour position
                 self.currentFrameContours.append( (x,y,x+w,y+h))
 
@@ -318,7 +320,7 @@ class TennisState:
             for ball in self.balls.list:
                 (x,y) = getRectCenter(ball)
                 print("[BALL INFO] ({}, {})".format(x,y))
-                img = cv2.circle(img,(x,y), 4, (0,255,255), 3)
+                img = cv2.circle(img,(x,y), 5, (0,255,255), 4)
 
         # Update frame detected contours
         self.lastFrameContours = self.currentFrameContours
@@ -441,7 +443,7 @@ def getMotionContours(img, background=False, motionDetectionCorners = None):
         kernelDilationSize = (25,36)
         kernelDilation =  cv2.getStructuringElement(cv2.MORPH_RECT, kernelDilationSize) # Rectangular shape with height > width to better find players
     else:
-        kernelErosionSize = (10,10)
+        kernelErosionSize = (9,9)
         kernelErosion = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, kernelErosionSize)
 
         kernelDilationSize = (75,120)
