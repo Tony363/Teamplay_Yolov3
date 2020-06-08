@@ -14,6 +14,8 @@ from multiprocessing.dummy import Pool as ThreadPool
 from tennis.lib_patches import *
 from tennis.tennis import *
 
+# Zoom library
+from zoom.zoom import *
 
 
 # python3 detectSmall.py --source video_path.mp4 --cfg cfg/yolov3.cfg --weights weights/yolov3.pt --classes 0 32 38 --iou-thres 0.1 --view-img
@@ -95,6 +97,13 @@ def detect(save_img=False):
     speed = 0
     # player shifted frame
     player = None
+    
+    # last frame zoomed img centroid
+    lastCentroid = (0,0)
+
+    # motion weight 
+    motionWeight = 0.9
+
     # Prediction on raw image
     if (opt.patch == 0):
         
@@ -194,42 +203,45 @@ def detect(save_img=False):
                         img = cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR)
                         return img
 
-                    def getCroppedImage(img,centroid):
-                        if centroid[0]-200 < 0:
+                    def getCroppedImage(img,centroid, offset):
+                        if centroid[0]-offset < 0:
                             xmin = 0
-                            xmax = 200*2
-                        elif centroid[0] + 200 > img.shape[1]:
-                            xmin = img.shape[1] - 200* 2
+                            xmax = offset*2
+                        elif centroid[0] + offset > img.shape[1]:
+                            xmin = img.shape[1] - offset* 2
                             xmax = img.shape[1]
                         else:
                             # todo max/min unecessary
-                            xmin = max(0, centroid[0] - 200)
-                            xmax = min(img.shape[1], centroid[0] + 200)
+                            xmin = max(0, centroid[0] - offset)
+                            xmax = min(img.shape[1], centroid[0] + offset)
                         
-                        if centroid[1] - 200 < 0:
+                        if centroid[1] - offset < 0:
                             ymin = 0
                             ymax = 100 * 2
-                        elif centroid[1] + 200 > img.shape[0]:
+                        elif centroid[1] + offset > img.shape[0]:
 
-                            ymin = img.shape[0] - 200*2
+                            ymin = img.shape[0] - offset*2
                             ymax = img.shape[0]
                         else:
-                            ymin = max(0, centroid[1] - 200)
-                            ymax = min(img.shape[0],centroid[1] + 200)
+                            ymin = max(0, centroid[1] - offset)
+                            ymax = min(img.shape[0],centroid[1] + offset)
 
                         # Crop a fixed size img using centroid
 
                         return xmin ,xmax, ymin, ymax
 
                     # zoomin func
-                    def zoomin(zoom,im0,xyxy,count):
-                        centroid = getRectCenter(xyxy)
-                        xmin,xmax,ymin,ymax = getCroppedImage(im0,centroid)
+                    def zoomin(zoom,im0,xyxy,count,lastCentroid, motionWeight):
+                        objectCentroid = getRectCenter(xyxy)
+                        centroid = getZoomCentroid(lastCentroid, objectCentroid, motionWeight)
+                        lastCentroid = centroid
+                        print(lastCentroid)
+                        xmin,xmax,ymin,ymax = getCroppedImage(im0,centroid, 400)
                         if zoom_object == 'object':
                             crop = im0[int(ymin):int(ymax),int(xmin):int(xmax)] 
                             crop = increase_brightness(crop,value=20)
                             count += 1 
-                            return zoom,crop,count
+                            return zoom,crop,count, lastCentroid
                         if zoom_object == 'player':
                             pass
                         if zoom_object == 'ball':
@@ -245,7 +257,7 @@ def detect(save_img=False):
                     # "Smooth zoom to detection"
                     def zoom_player(zoom,player,xyxy,speed,shift=20):
                         centroid = getRectCenter(xyxy)
-                        xmin,xmax,ymin,ymax = getCroppedImage(im0,centroid)
+                        xmin,xmax,ymin,ymax = getCroppedImage(im0,centroid, 400)
                         rows,cols,rgb = player.shape
                         if rows > int(ymin) and cols > int(xmin):
                             speed += shift
@@ -307,7 +319,7 @@ def detect(save_img=False):
                         zoom,zoom_im0 = zoom_out(zoom,im0)
                     # zoom in if flag triggered
                     elif zoom and zoom_object == "object":
-                        zoom,zoom_im0,count = zoomin(zoom,zoom_im0,gameState.players[0]['box'],count) #crop image
+                        zoom,zoom_im0,count,lastCentroid = zoomin(zoom,zoom_im0,gameState.players[0]['box'],count,lastCentroid, motionWeight) #crop image
 
                     # smootly zoom to player
                     elif zoom and zoom_object == 'player':
@@ -345,7 +357,7 @@ def detect(save_img=False):
                     gameState.lastFrameBalls = gameState.currentFrameBalls
                     gameState.currentFrameBalls = []
                 # Print time (inference + NMS)
-                # print('%sDone. (%.3fs)' % (s, t2 - t1))
+                print('%sDone. (%.3fs)' % (s, t2 - t1))
 
                 # Stream results
                 if view_img:
