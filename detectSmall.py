@@ -13,7 +13,6 @@ from tennis.lib_patches import *
 from tennis.tennis import *
 
 
-
 # python3 detectSmall.py --source video_path.mp4 --cfg cfg/yolov3.cfg --weights weights/yolov3.pt --classes 0 32 38 --iou-thres 0.1 --view-img
 
 def detect(save_img=False):
@@ -28,7 +27,8 @@ def detect(save_img=False):
 
 
     # Initialize Tennis State
-    gameState = TennisState(maxBalls = 5)
+    gameState = TennisState(maxBalls = 8)
+    readFrame = 0
 
     # Initialize model
     model = Darknet(opt.cfg, img_size)
@@ -95,14 +95,20 @@ def detect(save_img=False):
         # im0s -> real img
         # img -> transformed img (padded .. right size ...)
         for path, img, im0s, vid_cap in dataset:
-            
-            # Detect tennis court on the first frame
+            # Initialize Video config
+            fps = int(vid_cap.get(cv2.CAP_PROP_FPS))
+            totalFrames = int(vid_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+            # Detect tennis court on the first frame and Initialize the heart beart
             if gameState.courtIsDetected == False:
                 gameState.court = detectTennisCourt(im0s)
                 gameState.courtIsDetected = True
                 gameState.scaleDistance = getEuclideanDistance(gameState.court[0][0], gameState.court[2][0])
                 print("Scale distance :  {}".format(gameState.scaleDistance) )
-
+                gameState.leftHeartRates, gameState.rightHeartRates = readHeartRate(totalFrames, fps)
+                print("Video total number of frames : {}".format(int(vid_cap.get(cv2.CAP_PROP_FRAME_COUNT))))
+                gameState.motionDetectionCorners = (200, int(7*im0s.shape[0] / 24), im0s.shape[1] -200, 6 * int(im0s.shape[0]/7))
+                print("Motion Detection left-top corners : {}, {}".format(200,int(7*im0s.shape[0] / 24)))
 
             # Allocate the image tensor to the chosen device
             img = torch.from_numpy(img).to(device)
@@ -148,7 +154,8 @@ def detect(save_img=False):
                         s += '%g %ss, ' % (n, names[int(c)])  # add to string
                     
 
-                    
+                    im0Copy = im0.copy() # Image copy used by motion detection
+
                     leftPersons = [] # potential left player
                     rightPersons = [] # potential right player
                     
@@ -156,24 +163,39 @@ def detect(save_img=False):
                     # *xyxy - bounding 
                     for *xyxy, conf, cls in det:
                         if names[int(cls)] == "person" and getArea(xyxy) > 10000:
-                            # If the detected person in on the left side of the image
+                            # If the detected person is in the left side of the image
                             if (getRectCenter(xyxy))[0] < im0.shape[1] /  2:
                                 leftPersons.append((xyxy,conf,cls))
                             else:
                                 rightPersons.append((xyxy,conf,cls))
 
                         # Plot any other detected objects
-                        elif names[int(cls)] != "person":
+                        elif names[int(cls)] != "person" and opt.show:
                             label = '%s %.2f' % (names[int(cls)], conf)
                             plot_one_box(xyxy, im0, label=label, color=colors[int(cls)])
-                               
+
+                    # Update the ball position and trace
+                    if( opt.tracing and readFrame > START_BALL_TRACK_FRAME):
+                        startBall = torch_utils.time_synchronized()
+                        contours = getMotionContours(im0Copy,True,gameState.motionDetectionCorners)
+                        gameState.updateBallPositionFromMotion(im0, contours,readFrame, showContours = opt.contours)
+                        endBall = torch_utils.time_synchronized()
+                        print("[INFO] Updated ball position. ({:.3f}s)".format(endBall - startBall))
+
+                    # Update the player last hit speed
+                    gameState.updateHitSpeed(im0,readFrame)
+
                     # Update the player position and display the player bounding box on image
-                    gameState.identifyPlayersAndPlot(im0,leftPersons, rightPersons, colors)
+                    gameState.identifyPlayersAndPlot(im0,leftPersons, rightPersons, colors, False)
+                    
+                    # Update player heartbeat rate every second
+                    gameState.updateHeartRate(im0, readFrame,fps)
 
-                    # Update watch
-                    gameState.updateTimeWatch(im0, 60)
+                    # Update time watch
+                    gameState.updateTimeWatch(im0, fps)
 
-
+                    readFrame +=1
+                    
                     """
                     # Write results
                     for *xyxy, conf, cls in det:
@@ -187,7 +209,7 @@ def detect(save_img=False):
                             if (gameState.clearDetections(xyxy, conf, names[int(cls)])):
                                 plot_one_box(xyxy, im0, label=label, color=colors[int(cls)])
                     """
-
+                    
                     # Update state after all detections processing
                     print("[INFO] Update Game State ...")
                     for index, distance in enumerate(gameState.distances):
@@ -376,6 +398,9 @@ if __name__ == '__main__':
     parser.add_argument('--augment', action='store_true', help='augmented inference')
     parser.add_argument('--patch', type=int, default=0, help='patch size used for patches-based inference. ') # patch 1000 and overlap 200
     parser.add_argument('--overlap', type=int, help='overlap length used for patches-based inference. Should be greater or equal to the biggest relevant object')
+    parser.add_argument('--tracing', action='store_true', help='Enable ball tracing')
+    parser.add_argument('--show', action='store_true', help='Enable bounding boxes display from object detection')
+    parser.add_argument('--contours', action='store_true', help='Enable contours display from motion detection')
     opt = parser.parse_args()
     print(opt)
 
