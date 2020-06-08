@@ -5,7 +5,7 @@ import numpy as np
 from pylab import array,plot,show,axis,arange,figure,uint8
 
 
-cap = cv2.VideoCapture('2025.mp4')
+cap = cv2.VideoCapture('input_vid/2025.mp4')
 
 # Define the codec and create VideoWriter object 
 fourcc = cv2.VideoWriter_fourcc(*'XVID') 
