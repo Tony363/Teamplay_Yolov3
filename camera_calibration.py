@@ -3,6 +3,7 @@ import cv2
 import glob
 import argparse
 import imutils
+import yaml
 
 # from calibration_store import save_coefficients
 
@@ -96,18 +97,23 @@ def getCroppedImage(img,centroid):
 def undistortimg(mtx,dist,vid,write=False):
     cap = cv2.VideoCapture('input_vid/{vid}.mp4'.format(vid=vid))
     fourcc = cv2.VideoWriter_fourcc(*'XVID') 
-    out = cv2.VideoWriter('output/output.avi', fourcc, 20.0, (1980,720))   
+    count = 0
+    # init frame counter
     while True:
         ret,frame = cap.read()
         if ret:
             h,  w = frame.shape[:2] 
+            if count == 0:
+                out = cv2.VideoWriter('output/output.avi', fourcc, 20.0, (w,h)) 
+            # if frame counter is 0
+            # initialize the video objet
             newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
             mapx,mapy = cv2.initUndistortRectifyMap(mtx,dist,None,newcameramtx,(w,h),5)
             dst = cv2.remap(frame,mapx,mapy,cv2.INTER_LINEAR)
             x,y,w,h = roi
             dst = dst[y:y+h, x-300:x+w-300]
             try:
-                resized = cv2.resize(dst,(1980, 720))
+                resized = imutils.resize(dst, width=1080)
             except Exception as e:
                 print(e)
                 pass
@@ -116,6 +122,8 @@ def undistortimg(mtx,dist,vid,write=False):
                 cv2.waitKey()
             if write:
                out.write(resized)
+            count += 1
+            #icrement frame counter
         else:
             print("end of video")
             break
@@ -126,9 +134,11 @@ def undistortimg(mtx,dist,vid,write=False):
 def zoom(mtx,dist,vid,write=False):
     cap = cv2.VideoCapture('input_vid/{vid}.mp4'.format(vid=vid))
     fourcc = cv2.VideoWriter_fourcc(*'XVID') 
-    out = cv2.VideoWriter('output/output.avi', fourcc, 20.0, (1980,720)) 
+    count = 0
     while True:
         ret,frame = cap.read()
+        if count == 0:
+            out = cv2.VideoWriter('output/output.avi', fourcc, 20.0, (1980,720)) 
         if ret:
             frame = frame[100:600,500:1000]
             h, w = frame.shape[:2] 
@@ -140,6 +150,7 @@ def zoom(mtx,dist,vid,write=False):
             print(dst)
             cv2.imshow('zoom',dst)
             cv2.waitKey()
+            count += 1
         else:
             print('end of video')
             break
@@ -162,12 +173,33 @@ if __name__ == '__main__':
     parser.add_argument('--view_vid',action='store_true',help='view video')
     parser.add_argument('--read_vid',type=str,required=False,help='enter video to read')
     parser.add_argument('--write_vid',action='store_true',help='write video to file')
+    parser.add_argument('--yaml', action='store_true',help='read directly from yaml file')
+    parser.add_argument('--read_yaml', type=str,required=False,help='chose yaml file to read')
     args = parser.parse_args()
+
+    if args.yaml and args.read_yaml:
+        with open('calib_matrix/{file}'.format(file=args.read_yaml)) as yaml:
+            print(yaml)
+            # img = cv2.imread('calib_matrix/{undistort_img}.jpg'.format(undistort_img=args.read_image))
+            # h,  w = img.shape[:2]
+            # newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
+
+            # # undistort
+            # mapx,mapy = cv2.initUndistortRectifyMap(mtx,dist,None,newcameramtx,(w,h),5)
+            # dst = cv2.remap(img,mapx,mapy,cv2.INTER_LINEAR)
+
+    # crop the image
+    x,y,w,h = roi
+    dst = dst[y:y+h, x-300:x+w-300]
+   
+    cv2.imwrite('chessboardout/{img_name}.jpg'.format(img_name=args.write_image),dst)
     ret, mtx, dist, rvecs, tvecs = calibrate(args.image_dir, args.prefix, args.image_format, args.square_size, args.width, args.height)
     
     if args.save_file:
         save_coefficients(mtx, dist, args.save_file)
         print("Calibration is finished. RMS: ", ret)
+    
+    
     
     img = cv2.imread('calib_matrix/{undistort_img}.jpg'.format(undistort_img=args.read_image))
     h,  w = img.shape[:2]
