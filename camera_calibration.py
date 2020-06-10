@@ -28,32 +28,35 @@ def calibrate(dirpath, prefix, image_format, square_size, width=9, height=6):
     
     print(dirpath+'/' + prefix + '.' + image_format)
     images = glob.glob(dirpath+'/' + prefix + '*.' + image_format)
+    count = 0
+    total = 0
     for fname in images:
         img = cv2.imread(fname)
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
         # Find the chess board corners
         ret, corners = cv2.findChessboardCorners(gray, (width, height), None)
         # If found, add object points, image points (after refining them)
         if ret:
             objpoints.append(objp)
-
             corners2 = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
             imgpoints.append(corners2)
-
             # Draw and display the corners
             img = cv2.drawChessboardCorners(img, (width, height), corners2, ret)
-
+            print("picture {count} of {length}".format(count=count,length=len(range(total))))
+            count += 1
+        total += 1
     ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
-
     return [ret, mtx, dist, rvecs, tvecs]
+
 def save_coefficients(mtx, dist, path):
     """ Save the camera matrix and the distortion coefficients to given path/file. """
+    path = '/calib_matrix/{path}'.format(path=path)
     cv_file = cv2.FileStorage(path, cv2.FILE_STORAGE_WRITE)
     cv_file.write("K", mtx)
     cv_file.write("D", dist)
     # note you *release* you don't close() a FileStorage object
     cv_file.release()
+
 def load_coefficients(path):
     """ Loads camera matrix and distortion coefficients. """
     # FILE_STORAGE_READ
@@ -63,7 +66,6 @@ def load_coefficients(path):
     # FileNode object back instead of a matrix
     camera_matrix = cv_file.getNode("K").mat()
     dist_matrix = cv_file.getNode("D").mat()
-
     cv_file.release()
     return [camera_matrix, dist_matrix]
 
@@ -96,37 +98,37 @@ def getCroppedImage(img,centroid):
 
 def undistortimg(mtx,dist,vid,write=False):
     cap = cv2.VideoCapture('input_vid/{vid}.mp4'.format(vid=vid))
-    fourcc = cv2.VideoWriter_fourcc(*'XVID') 
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
     count = 0
-    # init frame counter
+    total = 0
     while True:
         ret,frame = cap.read()
         if ret:
             h,  w = frame.shape[:2] 
             if count == 0:
-                out = cv2.VideoWriter('output/output.avi', fourcc, 20.0, (w,h)) 
-            # if frame counter is 0
-            # initialize the video objet
+                out = cv2.VideoWriter('output/output.mp4', fourcc, 20.0, (1280,720)) 
             newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
             mapx,mapy = cv2.initUndistortRectifyMap(mtx,dist,None,newcameramtx,(w,h),5)
             dst = cv2.remap(frame,mapx,mapy,cv2.INTER_LINEAR)
             x,y,w,h = roi
             dst = dst[y:y+h, x-300:x+w-300]
             try:
-                resized = imutils.resize(dst, width=1080)
+                resized = cv2.resize(frame,(1280, 720))
             except Exception as e:
                 print(e)
                 pass
             if not write:
                 cv2.imshow('frame',resized)
-                cv2.waitKey()
+                # cv2.waitKey()
             if write:
                out.write(resized)
+            print("frame {count} of {total}".format(count=count,total=total))
             count += 1
             #icrement frame counter
         else:
             print("end of video")
             break
+        total += 1
     out.release()
     cap.release()
     cv2.destroyAllWindows()
@@ -157,69 +159,82 @@ def zoom(mtx,dist,vid,write=False):
     cap.release()
     cv2.destroyAllWindows()
 
+def opencv_matrix(loader,node):
+    mapping = loader.construct_mapping(node)
+    mat = np.array(mapping['data'])
+    mat.resize(mapping['rows'],mapping['cols'])
+    return mat
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Camera calibration')
-    parser.add_argument('--image_dir', type=str, required=True, help='image directory path')
-    parser.add_argument('--image_format', type=str, required=True,  help='image format, png/jpg')
-    parser.add_argument('--prefix', type=str, required=True, help='image prefix')
-    parser.add_argument('--square_size', type=float, required=True, help='chessboard square size')
-    parser.add_argument('--width', type=int, required=True, help='chessboard width size, default is 9')
-    parser.add_argument('--height', type=int, required=True, help='chessboard height size, default is 6')
-    parser.add_argument('--zoom',action='store_true',required=False,help='zoom or not to zoom[True/False]')
+    parser.add_argument('--image_dir', type=str, required=False, help='image directory path')
+    parser.add_argument('--image_format', type=str, required=False,  help='image format, png/jpg')
+    parser.add_argument('--prefix', type=str, required=False, help='image prefix')
+    parser.add_argument('--square_size', type=float, required=False, help='chessboard square size')
+    parser.add_argument('--width', type=int, required=False, help='chessboard width size, default is 9')
+    parser.add_argument('--height', type=int, required=False, help='chessboard height size, default is 6')
     parser.add_argument('--save_file', type=str, required=False, help='YML file to save calibration matrices')
     parser.add_argument('--read_image', type=str,required=True,help='chose path of image to undistort')
-    parser.add_argument('--write_image', type=str,required=True, help='name undistortion image')
-    parser.add_argument('--view_vid',action='store_true',help='view video')
+    parser.add_argument('--write_image', type=str,required=True, help='name undistortion image to undistort')
+    parser.add_argument('--read_yaml', type=str,required=False,help='chose yaml file to read')
     parser.add_argument('--read_vid',type=str,required=False,help='enter video to read')
     parser.add_argument('--write_vid',action='store_true',help='write video to file')
-    parser.add_argument('--yaml', action='store_true',help='read directly from yaml file')
-    parser.add_argument('--read_yaml', type=str,required=False,help='chose yaml file to read')
+    parser.add_argument('--zoom',action='store_true',required=False,help='zoom or not to zoom[True/False]')
+    parser.add_argument('--view_vid',action='store_true',help='view video')
     args = parser.parse_args()
 
-    if args.yaml and args.read_yaml:
-        with open('calib_matrix/{file}'.format(file=args.read_yaml)) as yaml:
-            print(yaml)
-            # img = cv2.imread('calib_matrix/{undistort_img}.jpg'.format(undistort_img=args.read_image))
-            # h,  w = img.shape[:2]
-            # newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
+    if args.read_yaml:
+        coeff = load_coefficients('calib_matrix/{file}'.format(file=args.read_yaml))
+        mtx = coeff[0]
+        dist = coeff[1]
+        print(mtx)
+        print(dist)
+        img = cv2.imread('calib_matrix/{undistort_img}.jpg'.format(undistort_img=args.read_image))
+        h,  w = img.shape[:2]
+        newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
+        # undistort
+        mapx,mapy = cv2.initUndistortRectifyMap(mtx,dist,None,newcameramtx,(w,h),5)
+        dst = cv2.remap(img,mapx,mapy,cv2.INTER_LINEAR)
+        # crop the image
+        x,y,w,h = roi
+        dst = dst[y:y+h, x:x+w]
+        # camera find straight line and work backwards from there
+        cv2.imwrite('chessboardout/{img_name}.jpg'.format(img_name=args.write_image),dst)
 
-            # # undistort
-            # mapx,mapy = cv2.initUndistortRectifyMap(mtx,dist,None,newcameramtx,(w,h),5)
-            # dst = cv2.remap(img,mapx,mapy,cv2.INTER_LINEAR)
+        if args.view_vid:
+            undistortimg(mtx,dist,args.read_vid)
+        elif args.write_vid:
+            undistortimg(mtx,dist,args.read_vid,args.write_vid)
+        elif args.zoom:
+            zoom(mtx,dist,args.read_vid,args.write_vid,args.zoom)
+    else:
+        ret, mtx, dist, rvecs, tvecs = calibrate(args.image_dir, args.prefix, args.image_format, args.square_size, args.width, args.height)
+        print(mtx)
+        print(dist)
+        if args.save_file:
+            save_coefficients(mtx, dist, args.save_file)
+            print("Calibration is finished. RMS: ", ret)
+        
+        img = cv2.imread('calib_matrix/{undistort_img}.jpg'.format(undistort_img=args.read_image))
+        h,  w = img.shape[:2]
+        newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
 
-    # crop the image
-    x,y,w,h = roi
-    dst = dst[y:y+h, x-300:x+w-300]
-   
-    cv2.imwrite('chessboardout/{img_name}.jpg'.format(img_name=args.write_image),dst)
-    ret, mtx, dist, rvecs, tvecs = calibrate(args.image_dir, args.prefix, args.image_format, args.square_size, args.width, args.height)
-    
-    if args.save_file:
-        save_coefficients(mtx, dist, args.save_file)
-        print("Calibration is finished. RMS: ", ret)
-    
-    
-    
-    img = cv2.imread('calib_matrix/{undistort_img}.jpg'.format(undistort_img=args.read_image))
-    h,  w = img.shape[:2]
-    newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
+        # undistort
+        mapx,mapy = cv2.initUndistortRectifyMap(mtx,dist,None,newcameramtx,(w,h),5)
+        dst = cv2.remap(img,mapx,mapy,cv2.INTER_LINEAR)
 
-    # undistort
-    mapx,mapy = cv2.initUndistortRectifyMap(mtx,dist,None,newcameramtx,(w,h),5)
-    dst = cv2.remap(img,mapx,mapy,cv2.INTER_LINEAR)
-
-    # crop the image
-    x,y,w,h = roi
-    dst = dst[y:y+h, x-300:x+w-300]
-   
-    cv2.imwrite('chessboardout/{img_name}.jpg'.format(img_name=args.write_image),dst)
-    cv2.imwrite('chessboardout/zoom.jpg',dst[100:600,500:1000])
-
-    if args.view_vid:
-        undistortimg(mtx,dist,args.read_vid)
-    elif args.write_vid:
-        undistortimg(mtx,dist,args.read_vid,args.write_vid)
-    elif args.zoom:
-        zoom(mtx,dist,args.read_vid,args.write_vid,args.zoom)
+        # crop the image
+        x,y,w,h = roi
+        dst = dst[y:y+h, x:x+w]
     
+        cv2.imwrite('chessboardout/{img_name}.jpg'.format(img_name=args.write_image),dst)
+        cv2.imwrite('chessboardout/zoom.jpg',dst[100:600,500:1000])
+
+        if args.view_vid:
+            undistortimg(mtx,dist,args.read_vid)
+        elif args.write_vid:
+            undistortimg(mtx,dist,args.read_vid,args.write_vid)
+        elif args.zoom:
+            zoom(mtx,dist,args.read_vid,args.write_vid,args.zoom)
+        

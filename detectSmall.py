@@ -304,18 +304,19 @@ def detect(save_img=False):
                         return zoom,crop,count
                     
                     def zoom_impact(zoom,frame,count):
-                        crop = frame[1160:1190,4020:4070]
+                        # crop = frame[1160:1190,4020:4070]
+                        crop = frame[1150:1200,4010:4060]
                         crop = increase_brightness(crop,value=20)
                         count += 1 
                         (h, w) = crop.shape[:2]
-                        if count > 93 and count < 140:                      
-                            ellipse = cv2.ellipse(crop,(w//2,h//2),(10,5),0,1,360,color=(45,255,255),thickness=-1)
+                        if count > 100 and count < 140:                      
+                            ellipse = cv2.ellipse(crop,(w//2,h//2),(6,3),0,1,360,color=(45,255,255),thickness=-1)
                             return zoom,ellipse,count
                         return zoom,crop,count
                                       
                         
                     # zoom stop count
-                    if count == 140:
+                    if count == 150:
                         zoom,zoom_im0 = zoom_out(zoom,im0)
                     # zoom in if flag triggered
                     elif zoom and zoom_object == "object":
