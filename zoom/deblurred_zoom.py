@@ -5,12 +5,10 @@ import numpy as np
 from pylab import array,plot,show,axis,arange,figure,uint8
 
 
-cap = cv2.VideoCapture('input_vid/2025.mp4')
-
+cap = cv2.VideoCapture('input_vid/serve_right1.mp4')
 # Define the codec and create VideoWriter object 
-fourcc = cv2.VideoWriter_fourcc(*'XVID') 
-out = cv2.VideoWriter('output.avi', fourcc, 20.0, (600, 400)) 
-# out = cv2.VideoWriter('output.avi',fourcc, 20.0, (int(cap.get(3)), int(cap.get(4))))
+fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
+# out = cv2.VideoWriter('output.mp4',fourcc, 20.0, (int(cap.get(3)), int(cap.get(4))))
 
 def make_1080():
     cap.set(3,1920)
@@ -130,25 +128,34 @@ x = arange(maxIntensity)
 phi = 1 
 theta = 1 
 
-make_1080()
+# make_1080()
+count = 0
 while True:
     ret,frame = cap.read() 
     if ret:
-        # frame = jump(frame,400,700,200,400)
-        frame = jump(frame,1000,1300,600,700)
-        # frame = cv2.blur(frame, (2,2))
-        image = unsharp_mask(frame)
-        newImage0 = (maxIntensity/phi)*(image/(maxIntensity/theta))**2
-        newImage0 = array(newImage0,dtype=uint8)
-        # frame = rescale_frame(sharpened_image,percent=75)
-        # frame = increase_brightness(frame)
-
+        frame = frame[800:1300,2500:2800]
         h,w = frame.shape[:2]
-        print(h,w)
-        cv2.imshow("frame", newImage0)
+        cv2.putText(frame,'50.55g',(w//12,h//3),cv2.FONT_HERSHEY_SIMPLEX,1,(0,255,255),2,cv2.LINE_4)
+        if count == 0:
+            out = cv2.VideoWriter('output.mp4', fourcc, 30,(w, h)) 
+        try:
+            resized = imutils.resize(frame,width=1080)
+        except Exception as e:
+            print(e)
+            pass
+        # frame = jump(frame,400,700,200,400)
+        # frame = jump(frame,1000,1300,600,700)
+        # frame = cv2.blur(frame, (2,2))
+        # image = unsharp_mask(frame)
+        # newImage0 = (maxIntensity/phi)*(image/(maxIntensity/theta))**2
+        # newImage0 = array(newImage0,dtype=uint8)
+        # frame = rescale_frame(sharpened_image,percent=75)
+        newImage0 = increase_brightness(frame)
+        cv2.imshow("frame", resized)
         out.write(newImage0)
         if cv2.waitKey(1) & 0xFF == ord('q'): 
             break
+        count += 1
     else:
         break
     

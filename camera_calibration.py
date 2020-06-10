@@ -96,7 +96,7 @@ def getCroppedImage(img,centroid):
 
     return xmin ,xmax, ymin, ymax
 
-def undistortimg(mtx,dist,vid,write=False):
+def undistortimg(mtx,dist,vid,view=False,write=False):
     cap = cv2.VideoCapture('input_vid/{vid}.mp4'.format(vid=vid))
     fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
     count = 0
@@ -104,27 +104,29 @@ def undistortimg(mtx,dist,vid,write=False):
     while True:
         ret,frame = cap.read()
         if ret:
-            h,  w = frame.shape[:2] 
-            if count == 0:
-                out = cv2.VideoWriter('output/output.mp4', fourcc, 20.0, (1280,720)) 
+            h,w = frame.shape[:2]
             newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
             mapx,mapy = cv2.initUndistortRectifyMap(mtx,dist,None,newcameramtx,(w,h),5)
             dst = cv2.remap(frame,mapx,mapy,cv2.INTER_LINEAR)
             x,y,w,h = roi
-            dst = dst[y:y+h, x-300:x+w-300]
+            dst = dst[y:y+h, x:x+w]
+            outh,  outw = dst.shape[:2] 
+            if count == 0:
+                fps = cap.get(cv2.CAP_PROP_FPS)
+                out = cv2.VideoWriter('output/output.mp4', fourcc, fps, (outw,outh)) 
             try:
-                resized = cv2.resize(frame,(1280, 720))
+                resized = imutils.resize(dst,width=1080)
             except Exception as e:
                 print(e)
                 pass
-            if not write:
+            if view:
                 cv2.imshow('frame',resized)
-                # cv2.waitKey()
+                if cv2.waitKey(1) == ord('q'):  # q to quit
+                    break
             if write:
-               out.write(resized)
-            print("frame {count} of {total}".format(count=count,total=total))
+               out.write(dst)
+            # print("frame {count} of {total}".format(count=count,total=total))
             count += 1
-            #icrement frame counter
         else:
             print("end of video")
             break
@@ -139,17 +141,17 @@ def zoom(mtx,dist,vid,write=False):
     count = 0
     while True:
         ret,frame = cap.read()
-        if count == 0:
-            out = cv2.VideoWriter('output/output.avi', fourcc, 20.0, (1980,720)) 
         if ret:
             frame = frame[100:600,500:1000]
             h, w = frame.shape[:2] 
+            if count == 0:
+                fps = cap.get(cv2.CAP_PROP_FPS)
+                out = cv2.VideoWriter('output/output.avi', fourcc, fps, (w,h)) 
             newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
             mapx,mapy = cv2.initUndistortRectifyMap(mtx,dist,None,newcameramtx,(w,h),5)
             dst = cv2.remap(frame,mapx,mapy,cv2.INTER_LINEAR)
             x,y,w,h = roi
-            dst = dst[y:y+h, x-300:x+w-300]
-            print(dst)
+            dst = dst[y:y+h, x:x+w]
             cv2.imshow('zoom',dst)
             cv2.waitKey()
             count += 1
@@ -188,8 +190,6 @@ if __name__ == '__main__':
         coeff = load_coefficients('calib_matrix/{file}'.format(file=args.read_yaml))
         mtx = coeff[0]
         dist = coeff[1]
-        print(mtx)
-        print(dist)
         img = cv2.imread('calib_matrix/{undistort_img}.jpg'.format(undistort_img=args.read_image))
         h,  w = img.shape[:2]
         newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
@@ -203,15 +203,13 @@ if __name__ == '__main__':
         cv2.imwrite('chessboardout/{img_name}.jpg'.format(img_name=args.write_image),dst)
 
         if args.view_vid:
-            undistortimg(mtx,dist,args.read_vid)
+            undistortimg(mtx,dist,args.read_vid,args.view_vid)
         elif args.write_vid:
             undistortimg(mtx,dist,args.read_vid,args.write_vid)
         elif args.zoom:
             zoom(mtx,dist,args.read_vid,args.write_vid,args.zoom)
     else:
         ret, mtx, dist, rvecs, tvecs = calibrate(args.image_dir, args.prefix, args.image_format, args.square_size, args.width, args.height)
-        print(mtx)
-        print(dist)
         if args.save_file:
             save_coefficients(mtx, dist, args.save_file)
             print("Calibration is finished. RMS: ", ret)
@@ -232,7 +230,7 @@ if __name__ == '__main__':
         cv2.imwrite('chessboardout/zoom.jpg',dst[100:600,500:1000])
 
         if args.view_vid:
-            undistortimg(mtx,dist,args.read_vid)
+            undistortimg(mtx,dist,args.read_vid,args.view_vid)
         elif args.write_vid:
             undistortimg(mtx,dist,args.read_vid,args.write_vid)
         elif args.zoom:

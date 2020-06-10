@@ -278,8 +278,10 @@ def detectTennisCourt(img, plot = False, offset = 100):
 
     # Get biggest contour (should be the game court)
     contoursArea = [cv2.contourArea(contour) for _, contour in enumerate(contours)]
-    contour = contours[np.argmax(contoursArea)]
-
+    if contours != [] :
+        contour = contours[np.argmax(contoursArea)]
+    else :
+        return []
     # Draw contours
     cv2.drawContours(img, [contour], 0, (0,255,0), 3)
     #cv2.imshow("Game Contour", img)

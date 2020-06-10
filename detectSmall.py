@@ -117,7 +117,10 @@ def detect(save_img=False):
             if gameState.courtIsDetected == False:
                 gameState.court = detectTennisCourt(im0s)
                 gameState.courtIsDetected = True
-                gameState.scaleDistance = getEuclideanDistance(gameState.court[0][0], gameState.court[2][0])
+                if gameState.court != [] :
+                    gameState.scaleDistance = getEuclideanDistance(gameState.court[0][0], gameState.court[2][0])
+                else :
+                    gameState.scaleDistance = 500
                 # print("Scale distance :  {}".format(gameState.scaleDistance) )
 
 
@@ -268,30 +271,6 @@ def detect(save_img=False):
                             return zoom,player,speed
                         frame = player[speed:int(xmax),speed:int(ymax)]
                         return zoom,frame,speed
-                        # if int(xmax) < 1056 and int(xmax) < 2517:
-                        #     frame = player[int(xmax):-speed,int(xmax):-speed*2]
-                        #     return zoom,frame,speed
-                        # elif int(xmax) > 1056 and int(xmax) > 2517:
-                        #     frame = player[speed:int(xmax),speed*2:int(xmax)] 
-                        #     return zoom,frame,speed
-                        # elif int(xmax) > 2517 and int(xmax) < 1056:
-                        #     frame = player[y:-speed,speed*2:int(xmax)]
-                        #     return zoom,frame,speed
-                        # elif int(xmax) < 2517 and int(ymax) > 1056:
-                        #     frame = player[speed:int(ymax),int(xmax):-speed*2]
-                        #     return zoom,frame,speed
-                        # elif int(ymax) > 1056:
-                        #     frame = player[speed:,:]
-                        #     return zoom,frame,speed
-                        # elif int(ymax) < 1056:
-                        #     frame = player[:-speed,:]
-                        #     return zoom,frame,speed
-                        # elif int(xmax) > 2517:
-                        #     frame = player[:,speed:]
-                        #     return zoom,frame,speed
-                        # elif int(xmax) < 2517:
-                        #     frame = player[:,:-speed]
-                        #     return zoom,frame,speed
 
                     def zoom_ball1(zoom,frame, count):
                         # if count > 85 and count < 110:
@@ -313,6 +292,13 @@ def detect(save_img=False):
                             ellipse = cv2.ellipse(crop,(w//2,h//2),(6,3),0,1,360,color=(45,255,255),thickness=-1)
                             return zoom,ellipse,count
                         return zoom,crop,count
+                    
+                    def zoom_serve(zoom,frame, count):
+                        # if count > 85 and count < 110:
+                        crop = frame
+                        crop = increase_brightness(crop,value=20)
+                        count += 1 
+                        return zoom,crop,count
                                       
                         
                     # zoom stop count
@@ -324,12 +310,13 @@ def detect(save_img=False):
 
                     # smootly zoom to player
                     elif zoom and zoom_object == 'player':
-                        try:
-                            zoom,player,speed = zoom_player(zoom,player,gameState.players[0]["box"],speed) 
-                            player = zoom_im0.copy
-                        except Exception as e:
-                            print(e)
-                            zoom,player,speed = zoom_player(zoom,zoom_im0,gameState.players[0]["box"],speed)
+                        zoom,zoom_im0,count = zoom_serve(zoom,zoom_im0,count)
+                        # try:
+                        #     zoom,player,speed = zoom_player(zoom,player,gameState.players[0]["box"],speed) 
+                        #     player = zoom_im0.copy
+                        # except Exception as e:
+                        #     print(e)
+                        #     zoom,player,speed = zoom_player(zoom,zoom_im0,gameState.players[0]["box"],speed)
                     elif zoom and zoom_object == 'ball':
                         zoom, zoom_im0,count = zoom_ball1(zoom,zoom_im0,count)
                     elif zoom and zoom_object == 'impact':
@@ -383,19 +370,11 @@ def detect(save_img=False):
                             SlowM_20 = 48
                             w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                             h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
+                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), 30, (zoom_im0.shape[1], zoom_im0.shape[0]))
 
                        
-                        if zoom:
-                            vid_writer.write(zoom_im0)
-                            vid_writer.write(zoom_im0)
-                            vid_writer.write(zoom_im0)
-                            vid_writer.write(zoom_im0)
-                            vid_writer.write(zoom_im0)
-                            vid_writer.write(zoom_im0)
-                            vid_writer.write(zoom_im0)
-                            vid_writer.write(zoom_im0)
-                            vid_writer.write(zoom_im0)
+                        # if zoom:
+                        #     vid_writer.write(zoom_im0)
                         vid_writer.write(zoom_im0)
 
                     if cv2.waitKey(1) == ord('q'):  # q to quit
