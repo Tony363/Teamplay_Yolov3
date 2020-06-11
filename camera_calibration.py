@@ -125,7 +125,7 @@ def undistortimg(mtx,dist,vid,view=False,write=False):
                     break
             if write:
                out.write(dst)
-            # print("frame {count} of {total}".format(count=count,total=total))
+            print("frame {count} of {total}".format(count=count,total=total))
             count += 1
         else:
             print("end of video")
@@ -205,7 +205,7 @@ if __name__ == '__main__':
         if args.view_vid:
             undistortimg(mtx,dist,args.read_vid,args.view_vid)
         elif args.write_vid:
-            undistortimg(mtx,dist,args.read_vid,args.write_vid)
+            undistortimg(mtx,dist,args.read_vid,False,args.write_vid)
         elif args.zoom:
             zoom(mtx,dist,args.read_vid,args.write_vid,args.zoom)
     else:

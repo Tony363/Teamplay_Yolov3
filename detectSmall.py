@@ -370,7 +370,7 @@ def detect(save_img=False):
                             SlowM_20 = 48
                             w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                             h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), 30, (zoom_im0.shape[1], zoom_im0.shape[0]))
+                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), 60, (zoom_im0.shape[1], zoom_im0.shape[0]))
 
                        
                         # if zoom:

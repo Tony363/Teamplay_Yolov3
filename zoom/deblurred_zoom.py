@@ -137,7 +137,7 @@ while True:
         h,w = frame.shape[:2]
         cv2.putText(frame,'50.55g',(w//12,h//3),cv2.FONT_HERSHEY_SIMPLEX,1,(0,255,255),2,cv2.LINE_4)
         if count == 0:
-            out = cv2.VideoWriter('output.mp4', fourcc, 30,(w, h)) 
+            out = cv2.VideoWriter('output.mp4', fourcc, 60,(w, h)) 
         try:
             resized = imutils.resize(frame,width=1080)
         except Exception as e:
