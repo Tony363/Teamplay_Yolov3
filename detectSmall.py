@@ -89,6 +89,51 @@ def detect(save_img=False):
 
     # Prediction on raw image
     if (opt.patch == 0):
+        # last frame zoomed img centroid
+        lastCentroid = (0,0)
+
+        # motion weight 
+        motionWeight = 0.9
+        def getCroppedImage(img, centroid,offset):      
+            if centroid[0]-400 < 0:
+                xmin = 0
+                xmax = 400*2
+            elif centroid[0] + 400 > img.shape[1]:
+                xmin = img.shape[1] - 400* 2
+                xmax = img.shape[1]
+            else:
+                # todo max/min unecessary
+                xmin = max(0, centroid[0] - 400)
+                xmax = min(img.shape[1], centroid[0] + 400)
+            if centroid[1] - 400 < 0:
+                ymin = 0
+                ymax = 400 * 2
+            elif centroid[1] + 400 > img.shape[0]:
+                ymin = img.shape[0] - 400*2
+                ymax = img.shape[0]
+            else:
+                ymin = max(0, centroid[1] - 400)
+                ymax = min(img.shape[0],centroid[1] + 400)
+            # Crop a fixed size img using centroid
+            return xmin ,xmax, ymin, ymax
+        def getZoomCentroid(oldCentroid, objectCentroid, motionWeight = 0.9):
+            # Initialize centroid on the first detected object
+            if (oldCentroid == (0,0)):
+                centroid = objectCentroid
+            # Apply motion weight to calculate new centroid
+            else :
+                centroid = tuple(map(lambda oldCentroidCoord, objectCentroidCoord: 
+                                        int(motionWeight * oldCentroidCoord + (1 - motionWeight) * objectCentroidCoord), oldCentroid, objectCentroid))
+            return centroid
+        # zoomin func
+        def zoomin(zoomim0,xyxy,lastCentroid, motionWeight):
+            objectCentroid = getRectCenter(xyxy)
+            centroid = getZoomCentroid(lastCentroid, objectCentroid, motionWeight)
+            lastCentroid = centroid
+            xmin,xmax,ymin,ymax = getCroppedImage(zoomim0,centroid, 400)
+            crop = im0[int(ymin):int(ymax),int(xmin):int(xmax)] 
+            # crop = increase_brightness(crop,value=20)
+            return crop, lastCentroid
 
         # Run inference
         t0 = time.time()
@@ -105,8 +150,8 @@ def detect(save_img=False):
                 gameState.courtIsDetected = True
                 gameState.scaleDistance = getEuclideanDistance(gameState.court[0][0], gameState.court[2][0])
                 print("Scale distance :  {}".format(gameState.scaleDistance) )
-                gameState.leftHeartRates, gameState.rightHeartRates = readHeartRate(totalFrames, fps)
-                print("Video total number of frames : {}".format(int(vid_cap.get(cv2.CAP_PROP_FRAME_COUNT))))
+                # gameState.leftHeartRates, gameState.rightHeartRates = readHeartRate(totalFrames, fps)
+                # print("Video total number of frames : {}".format(int(vid_cap.get(cv2.CAP_PROP_FRAME_COUNT))))
                 gameState.motionDetectionCorners = (200, int(7*im0s.shape[0] / 24), im0s.shape[1] -200, 6 * int(im0s.shape[0]/7))
                 print("Motion Detection left-top corners : {}, {}".format(200,int(7*im0s.shape[0] / 24)))
 
@@ -189,7 +234,7 @@ def detect(save_img=False):
                     gameState.identifyPlayersAndPlot(im0,leftPersons, rightPersons, colors, False)
                     
                     # Update player heartbeat rate every second
-                    gameState.updateHeartRate(im0, readFrame,fps)
+                    # gameState.updateHeartRate(im0, readFrame,fps)
 
                     # Update time watch
                     gameState.updateTimeWatch(im0, fps)
@@ -221,7 +266,8 @@ def detect(save_img=False):
 
                 # Stream results
                 if view_img:
-                    im0_resized = imutils.resize(im0, width=1920)
+                    zoom_im0,lastCentroid = zoomin(im0,gameState.players[1]['box'],lastCentroid, motionWeight) #crop image
+                    im0_resized = imutils.resize(zoom_im0, width=1080)
                     cv2.imshow(p, im0_resized)
                     #cv2.waitKey(0)
                     if cv2.waitKey(1) == ord('q'):  # q to quit
@@ -240,7 +286,9 @@ def detect(save_img=False):
                             fps = vid_cap.get(cv2.CAP_PROP_FPS)
                             w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                             h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (w, h))
+                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (800, 800))
+
+                        im0,lastCentroid = zoomin(im0,gameState.players[1]['box'],lastCentroid, motionWeight) #crop image
                         vid_writer.write(im0)
 
         if save_txt or save_img:
