@@ -122,7 +122,7 @@ def detect(save_img=False):
                 gameState.courtIsDetected = True
                 gameState.scaleDistance = getEuclideanDistance(gameState.court[0][0], gameState.court[2][0])
                 print("Scale distance :  {}".format(gameState.scaleDistance) )
-                gameState.leftHeartRates, gameState.rightHeartRates = readHeartRate(totalFrames, fps)
+                # gameState.leftHeartRates, gameState.rightHeartRates = readHeartRate(totalFrames, fps)
                 print("Video total number of frames : {}".format(int(vid_cap.get(cv2.CAP_PROP_FRAME_COUNT))))
                 gameState.motionDetectionCorners = (200, int(7*im0s.shape[0] / 24), im0s.shape[1] -200, 6 * int(im0s.shape[0]/7))
                 print("Motion Detection left-top corners : {}, {}".format(200,int(7*im0s.shape[0] / 24)))
@@ -208,10 +208,14 @@ def detect(save_img=False):
                     gameState.identifyPlayersAndPlot(im0,leftPersons, rightPersons, colors, False)
                     
                     # Update player heartbeat rate every second
-                    gameState.updateHeartRate(im0, readFrame,fps)
+                    # gameState.updateHeartRate(im0, readFrame,fps)
 
                     # Update time watch
                     gameState.updateTimeWatch(im0, fps)
+
+                    def increase_brightness(img, value=30):
+                        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+                        h, s, v = cv2.split(hsv)
 
                         lim = 255 - value
                         v[v > lim] = 255
@@ -337,6 +341,7 @@ def detect(save_img=False):
                     elif zoom and zoom_object == 'impact':
                         zoom,zoom_im0,count = zoom_impact(zoom,zoom_im0,count)
                     
+                    
 
 
                     readFrame +=1
@@ -387,7 +392,7 @@ def detect(save_img=False):
                             SlowM_20 = 48
                             w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                             h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), 60, (zoom_im0.shape[1], zoom_im0.shape[0]))
+                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
 
                        
                         # if zoom:
