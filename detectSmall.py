@@ -17,7 +17,7 @@ from tennis.tennis import *
 
 def detect(save_img=False):
     img_size = (320, 192) if ONNX_EXPORT else opt.img_size  # (320, 192) or (416, 256) or (608, 352) for (height, width)
-    out, source, weights, half, view_img, save_txt = opt.output, opt.source, opt.weights, opt.half, opt.view_img, opt.save_txt
+    zoom, out, source, weights, half, view_img, save_txt = opt.zoom,opt.output, opt.source, opt.weights, opt.half, opt.view_img, opt.save_txt
     webcam = source == '0' or source.startswith('rtsp') or source.startswith('http') or source.endswith('.txt')
 
     # Initialize the device
@@ -266,8 +266,11 @@ def detect(save_img=False):
 
                 # Stream results
                 if view_img:
-                    zoom_im0,lastCentroid = zoomin(im0,gameState.players[1]['box'],lastCentroid, motionWeight) #crop image
-                    im0_resized = imutils.resize(zoom_im0, width=1080)
+                    if opt.tracing and zoom:
+                        zoom_im0,lastCentroid = zoomin(im0,gameState.players[0]['box'],lastCentroid, motionWeight) #crop image
+                        im0_resized = imutils.resize(zoom_im0, width=1080)
+                    else:
+                        im0_resized = imutils.resize(im0, width=1080)
                     cv2.imshow(p, im0_resized)
                     #cv2.waitKey(0)
                     if cv2.waitKey(1) == ord('q'):  # q to quit
@@ -286,10 +289,16 @@ def detect(save_img=False):
                             fps = vid_cap.get(cv2.CAP_PROP_FPS)
                             w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                             h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (800, 800))
-
-                        im0,lastCentroid = zoomin(im0,gameState.players[1]['box'],lastCentroid, motionWeight) #crop image
-                        vid_writer.write(im0)
+                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (w,h))
+                            
+                            if opt.tracing and zoom:
+                                w,h = zoom_im0.shape[:2]
+                                vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (800,800))
+                        if opt.tracing and zoom:    
+                            vid_writer.write(zoom_im0)
+                        else:
+                            vid_writer.write(im0)
+                        
 
         if save_txt or save_img:
             print('Results saved to %s' % os.getcwd() + os.sep + out)
@@ -449,6 +458,7 @@ if __name__ == '__main__':
     parser.add_argument('--tracing', action='store_true', help='Enable ball tracing')
     parser.add_argument('--show', action='store_true', help='Enable bounding boxes display from object detection')
     parser.add_argument('--contours', action='store_true', help='Enable contours display from motion detection')
+    parser.add_argument('--zoom',action='store_true',help='zoom in')
     opt = parser.parse_args()
     print(opt)
 
