@@ -395,8 +395,10 @@ def detect(save_img=False):
                             vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
 
                        
-                        # if zoom:
-                        #     vid_writer.write(zoom_im0)
+                        elif zoom and opt.tracing:
+                            zoom,zoom_im0,count,lastCentroid = zoomin(zoom,zoom_im0,gameState.players[0]['box'],count,lastCentroid, motionWeight) #crop image
+                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
+                            
                         vid_writer.write(zoom_im0)
 
                     if cv2.waitKey(1) == ord('q'):  # q to quit
