@@ -15,7 +15,7 @@ from tennis.lib_patches import *
 from tennis.tennis import *
 
 # Zoom library
-from zoom.zoom import *
+from zoom.zoom import zoomin,increase_brightness,getZoomCentroid,getCroppedImage,zoom_ball1,zoom_impact,zoom_player
 
 # python3 detectSmall.py --source video_path.mp4 --cfg cfg/yolov3.cfg --weights weights/yolov3.pt --classes 0 32 38 --iou-thres 0.1 --view-img
 
@@ -213,6 +213,12 @@ def detect(save_img=False):
                     # Update time watch
                     gameState.updateTimeWatch(im0, fps)
 
+                    if zoom:
+                        zoom,im0,count,lastCentroid = zoomin(zoom,im0,gameState.players[0]['box'],count,lastCentroid, motionWeight) #crop image
+                    elif zoom and zoom_object == 'ball':
+                        zoom, zoom_im0,count = zoom_ball1(zoom,zoom_im0,count)
+                    elif zoom and zoom_object == 'impact':
+                        zoom,zoom_im0,count = zoom_impact(zoom,zoom_im0,count)
                     readFrame +=1
                     
                     """
@@ -240,10 +246,12 @@ def detect(save_img=False):
 
                 # Stream results
                 if view_img:
-                    if zoom:
-                        im0_resized = imutils.resize(zoom_im0, width=1080,height=1920)
+                    if zoom and opt.tracing:
+                        im0_resized = imutils.resize(im0, width=1080)
+                    elif zoom:
+                        im0_resized = imutils.resize(zoom_im0, width=1080)
                     else:
-                        im0_resized = imutils.resize(im0, width=1080,height=1920)
+                        im0_resized = imutils.resize(im0, width=1080)
                     cv2.imshow(p, im0_resized)
                     #cv2.waitKey(0)
                     if cv2.waitKey(1) == ord('q'):  # q to quit
@@ -251,6 +259,7 @@ def detect(save_img=False):
 
                 # Save results (image with detections)
                 if save_img:
+                    count = 0 # writing count
                     if dataset.mode == 'images':
                         cv2.imwrite(save_path, im0)
                     else:
@@ -258,39 +267,22 @@ def detect(save_img=False):
                             vid_path = save_path
                             if isinstance(vid_writer, cv2.VideoWriter):
                                 vid_writer.release()  # release previous video writer
-
                             fps = vid_cap.get(cv2.CAP_PROP_FPS)
                             SlowM_80 = 12
                             SlowM_20 = 48
                             w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                             h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (w,h))
-
-                        if zoom and zoom_object == "object":
-                            zoom,zoom_im0,count,lastCentroid = zoomin(zoom,zoom_im0,gameState.players[0]['box'],count,lastCentroid, motionWeight) #crop image
                             vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
-                            vid_writer.write(zoom_im0)
-                        # smootly zoom to player
-                        elif zoom and zoom_object == 'player':
-                            zoom,zoom_im0,count = zoom_serve(zoom,zoom_im0,count)
-                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
-                            vid_writer.write(zoom_im0)
-                        elif zoom and zoom_object == 'ball':
-                            zoom, zoom_im0,count = zoom_ball1(zoom,zoom_im0,count)
-                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
-                            vid_writer.write(zoom_im0)
-                        elif zoom and zoom_object == 'impact':
-                            zoom,zoom_im0,count = zoom_impact(zoom,zoom_im0,count)
-                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
-                            vid_writer.write(zoom_im0)
-                        elif zoom and opt.tracing:
-                            zoom,zoom_im0,count,lastCentroid = zoomin(zoom,zoom_im0,gameState.players[0]['box'],count,lastCentroid, motionWeight) #crop image
-                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
+            
+                        if zoom and opt.tracing:
+                            print(im0.shape)
+                            fps = vid_cap.get(cv2.CAP_PROP_FPS)
+                            write_traced_zoom = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (im0.shape[1], im0.shape[0]))
+                            write_traced_zoom.write(im0)
+                        elif zoom:
                             vid_writer.write(zoom_im0)
                         else:
                             vid_writer.write(im0)
-                            
-                        
 
                     if cv2.waitKey(1) == ord('q'):  # q to quit
                         raise StopIteration
