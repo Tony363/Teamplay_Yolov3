@@ -213,137 +213,6 @@ def detect(save_img=False):
                     # Update time watch
                     gameState.updateTimeWatch(im0, fps)
 
-                    def increase_brightness(img, value=30):
-                        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-                        h, s, v = cv2.split(hsv)
-
-                        lim = 255 - value
-                        v[v > lim] = 255
-                        v[v <= lim] += value
-
-                        final_hsv = cv2.merge((h, s, v))
-                        img = cv2.cvtColor(final_hsv, cv2.COLOR_HSV2BGR)
-                        return img
-
-                    def getCroppedImage(img,centroid, offset):
-                        if centroid[0]-offset < 0:
-                            xmin = 0
-                            xmax = offset*2
-                        elif centroid[0] + offset > img.shape[1]:
-                            xmin = img.shape[1] - offset* 2
-                            xmax = img.shape[1]
-                        else:
-                            # todo max/min unecessary
-                            xmin = max(0, centroid[0] - offset)
-                            xmax = min(img.shape[1], centroid[0] + offset)
-                        
-                        if centroid[1] - offset < 0:
-                            ymin = 0
-                            ymax = 100 * 2
-                        elif centroid[1] + offset > img.shape[0]:
-
-                            ymin = img.shape[0] - offset*2
-                            ymax = img.shape[0]
-                        else:
-                            ymin = max(0, centroid[1] - offset)
-                            ymax = min(img.shape[0],centroid[1] + offset)
-
-                        # Crop a fixed size img using centroid
-
-                        return xmin ,xmax, ymin, ymax
-
-                    # zoomin func
-                    def zoomin(zoom,im0,xyxy,count,lastCentroid, motionWeight):
-                        objectCentroid = getRectCenter(xyxy)
-                        centroid = getZoomCentroid(lastCentroid, objectCentroid, motionWeight)
-                        lastCentroid = centroid
-                        print(lastCentroid)
-                        xmin,xmax,ymin,ymax = getCroppedImage(im0,centroid, 400)
-                        if zoom_object == 'object':
-                            crop = im0[int(ymin):int(ymax),int(xmin):int(xmax)] 
-                            crop = increase_brightness(crop,value=20)
-                            count += 1 
-                            return zoom,crop,count, lastCentroid
-                        if zoom_object == 'player':
-                            pass
-                        if zoom_object == 'ball':
-                            pass
-
-
-                    # zoom out func
-                    def zoom_out(zoom,im0):
-                        crop = im0[:,:]
-                        zoom = False
-                        return zoom,crop
-                    
-                    # "Smooth zoom to detection"
-                    def zoom_player(zoom,player,xyxy,speed,shift=20):
-                        centroid = getRectCenter(xyxy)
-                        xmin,xmax,ymin,ymax = getCroppedImage(im0,centroid, 400)
-                        rows,cols,rgb = player.shape
-                        if rows > int(ymin) and cols > int(xmin):
-                            speed += shift
-                        else:
-                            zoom = False
-                            player = im0
-                            speed = 0
-                            return zoom,player,speed
-                        frame = player[speed:int(xmax),speed:int(ymax)]
-                        return zoom,frame,speed
-
-                    def zoom_ball1(zoom,frame, count):
-                        # if count > 85 and count < 110:
-                        crop = frame[1000:1400,3800:4200] 
-                        crop = increase_brightness(crop,value=20)
-                        count += 1 
-                        if count > 93 and count < 100:
-                            circle = cv2.circle(crop,(232,183),radius=3,color=(45, 255, 255),thickness=-1)
-                            return zoom,circle,count
-                        return zoom,crop,count
-                    
-                    def zoom_impact(zoom,frame,count):
-                        # crop = frame[1160:1190,4020:4070]
-                        crop = frame[1150:1200,4010:4060]
-                        crop = increase_brightness(crop,value=20)
-                        count += 1 
-                        (h, w) = crop.shape[:2]
-                        if count > 100 and count < 140:                      
-                            ellipse = cv2.ellipse(crop,(w//2,h//2),(6,3),0,1,360,color=(45,255,255),thickness=-1)
-                            return zoom,ellipse,count
-                        return zoom,crop,count
-                    
-                    def zoom_serve(zoom,frame, count):
-                        # if count > 85 and count < 110:
-                        crop = frame
-                        crop = increase_brightness(crop,value=20)
-                        count += 1 
-                        return zoom,crop,count
-                                      
-                        
-                    # zoom stop count
-                    if count == 150:
-                        zoom,zoom_im0 = zoom_out(zoom,im0)
-                    # zoom in if flag triggered
-                    elif zoom and zoom_object == "object":
-                        zoom,zoom_im0,count,lastCentroid = zoomin(zoom,zoom_im0,gameState.players[0]['box'],count,lastCentroid, motionWeight) #crop image
-
-                    # smootly zoom to player
-                    elif zoom and zoom_object == 'player':
-                        zoom,zoom_im0,count = zoom_serve(zoom,zoom_im0,count)
-                        # try:
-                        #     zoom,player,speed = zoom_player(zoom,player,gameState.players[0]["box"],speed) 
-                        #     player = zoom_im0.copy
-                        # except Exception as e:
-                        #     print(e)
-                        #     zoom,player,speed = zoom_player(zoom,zoom_im0,gameState.players[0]["box"],speed)
-                    elif zoom and zoom_object == 'ball':
-                        zoom, zoom_im0,count = zoom_ball1(zoom,zoom_im0,count)
-                    elif zoom and zoom_object == 'impact':
-                        zoom,zoom_im0,count = zoom_impact(zoom,zoom_im0,count)
-                    
-                    
-
-
                     readFrame +=1
                     
                     """
@@ -371,7 +240,10 @@ def detect(save_img=False):
 
                 # Stream results
                 if view_img:
-                    im0_resized = imutils.resize(zoom_im0, width=1080,height=1920)
+                    if zoom:
+                        im0_resized = imutils.resize(zoom_im0, width=1080,height=1920)
+                    else:
+                        im0_resized = imutils.resize(im0, width=1080,height=1920)
                     cv2.imshow(p, im0_resized)
                     #cv2.waitKey(0)
                     if cv2.waitKey(1) == ord('q'):  # q to quit
@@ -392,14 +264,33 @@ def detect(save_img=False):
                             SlowM_20 = 48
                             w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                             h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
+                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (w,h))
 
-                       
+                        if zoom and zoom_object == "object":
+                            zoom,zoom_im0,count,lastCentroid = zoomin(zoom,zoom_im0,gameState.players[0]['box'],count,lastCentroid, motionWeight) #crop image
+                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
+                            vid_writer.write(zoom_im0)
+                        # smootly zoom to player
+                        elif zoom and zoom_object == 'player':
+                            zoom,zoom_im0,count = zoom_serve(zoom,zoom_im0,count)
+                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
+                            vid_writer.write(zoom_im0)
+                        elif zoom and zoom_object == 'ball':
+                            zoom, zoom_im0,count = zoom_ball1(zoom,zoom_im0,count)
+                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
+                            vid_writer.write(zoom_im0)
+                        elif zoom and zoom_object == 'impact':
+                            zoom,zoom_im0,count = zoom_impact(zoom,zoom_im0,count)
+                            vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
+                            vid_writer.write(zoom_im0)
                         elif zoom and opt.tracing:
                             zoom,zoom_im0,count,lastCentroid = zoomin(zoom,zoom_im0,gameState.players[0]['box'],count,lastCentroid, motionWeight) #crop image
                             vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
+                            vid_writer.write(zoom_im0)
+                        else:
+                            vid_writer.write(im0)
                             
-                        vid_writer.write(zoom_im0)
+                        
 
                     if cv2.waitKey(1) == ord('q'):  # q to quit
                         raise StopIteration
@@ -413,8 +304,6 @@ def detect(save_img=False):
     # Prediction on image patches. Use --patch and --overlap arguments to use patch inference.
     else:
        
-        
-
         # Run inference
         t0 = time.time()
         # im0s -> real img
