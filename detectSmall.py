@@ -214,7 +214,7 @@ def detect(save_img=False):
                     gameState.updateTimeWatch(im0, fps)
 
                     if zoom:
-                        zoom,im0,count,lastCentroid = zoomin(zoom,im0,gameState.players[0]['box'],count,lastCentroid, motionWeight) #crop image
+                        zoom,im0,count,lastCentroid = zoomin(zoom,im0,gameState.players[1]['box'],count,lastCentroid, motionWeight) #crop image
                     elif zoom and zoom_object == 'ball':
                         zoom, zoom_im0,count = zoom_ball1(zoom,zoom_im0,count)
                     elif zoom and zoom_object == 'impact':
@@ -273,11 +273,10 @@ def detect(save_img=False):
                             w = int(vid_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
                             h = int(vid_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
                             vid_writer = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (zoom_im0.shape[1], zoom_im0.shape[0]))
-            
+                            if zoom and opt.tracing:
+                                fps = vid_cap.get(cv2.CAP_PROP_FPS)
+                                write_traced_zoom = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (im0.shape[1], im0.shape[0]))
                         if zoom and opt.tracing:
-                            print(im0.shape)
-                            fps = vid_cap.get(cv2.CAP_PROP_FPS)
-                            write_traced_zoom = cv2.VideoWriter(save_path, cv2.VideoWriter_fourcc(*opt.fourcc), fps, (im0.shape[1], im0.shape[0]))
                             write_traced_zoom.write(im0)
                         elif zoom:
                             vid_writer.write(zoom_im0)

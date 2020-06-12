@@ -57,6 +57,10 @@ def zoomin(zoom,im0,xyxy,count,lastCentroid, motionWeight):
     objectCentroid = getRectCenter(xyxy)
     centroid = getZoomCentroid(lastCentroid, objectCentroid, motionWeight)
     lastCentroid = centroid
+    if lastCentroid == (0,0):
+        crop = im0[:800,:800]
+        count += 1 
+        return zoom,crop,count,lastCentroid
     xmin,xmax,ymin,ymax = getCroppedImage(im0,centroid, 400)
     crop = im0[int(ymin):int(ymax),int(xmin):int(xmax)] 
     crop = increase_brightness(crop,value=20)
