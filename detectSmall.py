@@ -214,7 +214,7 @@ def detect(save_img=False):
                     gameState.updateTimeWatch(im0, fps)
 
                     if zoom:
-                        zoom,im0,count,lastCentroid = zoomin(zoom,im0,gameState.players[1]['box'],count,lastCentroid, motionWeight) #crop image
+                        zoom,im0,count,lastCentroid = zoomin(zoom,im0,gameState.players[0]['box'],count,lastCentroid, motionWeight) #crop image
                     elif zoom and zoom_object == 'ball':
                         zoom, zoom_im0,count = zoom_ball1(zoom,zoom_im0,count)
                     elif zoom and zoom_object == 'impact':
