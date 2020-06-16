@@ -1,6 +1,6 @@
 # Repo-specific GitIgnore ----------------------------------------------------------------------------------------------
 
-*.png
+# *.png
 *.bmp
 *.tif
 *.tiff
@@ -64,6 +64,8 @@ __pycache__/
 # Distribution / packaging
 .Python
 env/
+venv/
+.vscode/
 build/
 develop-eggs/
 dist/

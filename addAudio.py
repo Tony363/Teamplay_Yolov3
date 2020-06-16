@@ -1,13 +1,13 @@
 import argparse
 import moviepy.editor as mpe
 #make audio
-def addAudio(videoPath, audioVideoPath):
+def addAudio(videoPath, audioVideoPath,speed:int):
 
     videoClip = mpe.VideoFileClip(videoPath)
     audioVideoClip = mpe.VideoFileClip(audioVideoPath)
 
     final_clip = videoClip.set_audio(audioVideoClip.audio)
-    final_clip = final_clip.speedx(factor=0.5)
+    final_clip = final_clip.speedx(factor=speed)
     
     videoPath = videoPath[:-4] + "_audio.mp4"
     final_clip.write_videofile(videoPath)

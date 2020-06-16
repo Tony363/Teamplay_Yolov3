@@ -17,6 +17,9 @@ from tennis.tennis import *
 # Zoom library
 from zoom.zoom import zoomin,increase_brightness,getZoomCentroid,getCroppedImage,zoom_ball1,zoom_impact,zoom_player
 
+# Audio function
+from addAudio import addAudio
+
 # python3 detectSmall.py --source video_path.mp4 --cfg cfg/yolov3.cfg --weights weights/yolov3.pt --classes 0 32 38 --iou-thres 0.1 --view-img
 
 def detect(save_img=False):
@@ -291,6 +294,14 @@ def detect(save_img=False):
             if platform == 'darwin':  # MacOS
                 os.system('open ' + out + ' ' + save_path)
         # print('Done. (%.3fs)' % (time.time() - t0))
+    """
+    add audio function here
+    """
+    if opt.audioVideoPath:
+        print('triggered')
+        audioPath = opt.audioVideoPath
+        speed = opt.speed
+        addAudio(source,audioPath,speed)
 
     # Prediction on image patches. Use --patch and --overlap arguments to use patch inference.
     else:
@@ -445,8 +456,10 @@ if __name__ == '__main__':
     parser.add_argument('--contours', action='store_true', help='Enable contours display from motion detection')
     parser.add_argument('--zoom',action="store_true", help='zoom or not to zoom [True/False]')
     parser.add_argument('--zoom_object',type=str,default='object',help='enter object to zoom into[object/player/ball]')
+    # parser.add_argument("--videoPath", help="path to the stitched video file")
+    parser.add_argument("--audioVideoPath", help="path to one of the original video to retrieve its audio channel")
+    parser.add_argument('--speed',type=int,default=1,help='speed of video when adding audio')
     opt = parser.parse_args()
-    # print(opt)
 
     with torch.no_grad():
         detect()
