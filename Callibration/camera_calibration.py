@@ -3,9 +3,7 @@ import cv2
 import glob
 import argparse
 import imutils
-import yaml
 
-# from calibration_store import save_coefficients
 
 # termination criteria
 criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
@@ -16,13 +14,10 @@ def calibrate(dirpath, prefix, image_format, square_size, width=9, height=6):
     # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(8,6,0)
     objp = np.zeros((height*width, 3), np.float32)
     objp[:, :2] = np.mgrid[0:width, 0:height].T.reshape(-1, 2)
-
     objp = objp * square_size
-
     # Arrays to store object points and image points from all the images.
     objpoints = []  # 3d point in real world space
     imgpoints = []  # 2d points in image plane.
-
     if dirpath[-1:] == '/':
         dirpath = dirpath[:-1]
     
@@ -46,22 +41,22 @@ def calibrate(dirpath, prefix, image_format, square_size, width=9, height=6):
             count += 1
         total += 1
     ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
-    return [ret, mtx, dist, rvecs, tvecs]
+    return ret, mtx, dist, rvecs, tvecs
 
 def save_coefficients(mtx, dist, path):
     """ Save the camera matrix and the distortion coefficients to given path/file. """
-    path = '/calib_matrix/{path}'.format(path=path)
+    # path = '/calib_matrix/{path}'.format(path=path)
     cv_file = cv2.FileStorage(path, cv2.FILE_STORAGE_WRITE)
     cv_file.write("K", mtx)
     cv_file.write("D", dist)
     # note you *release* you don't close() a FileStorage object
     cv_file.release()
+    print("file saved")
 
 def load_coefficients(path):
     """ Loads camera matrix and distortion coefficients. """
     # FILE_STORAGE_READ
     cv_file = cv2.FileStorage(path, cv2.FILE_STORAGE_READ)
-
     # note we also have to specify the type to retrieve other wise we only get a
     # FileNode object back instead of a matrix
     camera_matrix = cv_file.getNode("K").mat()
@@ -80,20 +75,16 @@ def getCroppedImage(img,centroid):
         # todo max/min unecessary
         xmin = max(0, centroid[0] - 200)
         xmax = min(img.shape[1], centroid[0] + 200)
-    
     if centroid[1] - 200 < 0:
         ymin = 0
         ymax = 100 * 2
     elif centroid[1] + 200 > img.shape[0]:
-
         ymin = img.shape[0] - 200*2
         ymax = img.shape[0]
     else:
         ymin = max(0, centroid[1] - 200)
         ymax = min(img.shape[0],centroid[1] + 200)
-
     # Crop a fixed size img using centroid
-
     return xmin ,xmax, ymin, ymax
 
 def undistortimg(mtx,dist,vid,view=False,write=False):
@@ -213,7 +204,6 @@ if __name__ == '__main__':
         if args.save_file:
             save_coefficients(mtx, dist, args.save_file)
             print("Calibration is finished. RMS: ", ret)
-        
         img = cv2.imread('calib_matrix/{undistort_img}.jpg'.format(undistort_img=args.read_image))
         h,  w = img.shape[:2]
         newcameramtx, roi = cv2.getOptimalNewCameraMatrix(mtx,dist,(w,h),1,(w,h))
@@ -227,7 +217,6 @@ if __name__ == '__main__':
         dst = dst[y:y+h, x:x+w]
     
         cv2.imwrite('chessboardout/{img_name}.jpg'.format(img_name=args.write_image),dst)
-        cv2.imwrite('chessboardout/zoom.jpg',dst[100:600,500:1000])
 
         if args.view_vid:
             undistortimg(mtx,dist,args.read_vid,args.view_vid)
