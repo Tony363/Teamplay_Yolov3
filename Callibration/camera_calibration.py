@@ -44,7 +44,7 @@ def calibrate(dirpath, prefix, image_format, square_size, width=9, height=6):
     return ret, mtx, dist, rvecs, tvecs
 
 def save_coefficients(mtx, dist, path):
-    """ Save the camera matrix and the distortion coefficients to given path/file. """
+    """ Save the camera matrix and thsave_txte distortion coefficients to given path/file. """
     # path = '/calib_matrix/{path}'.format(path=path)
     cv_file = cv2.FileStorage(path, cv2.FILE_STORAGE_WRITE)
     cv_file.write("K", mtx)
