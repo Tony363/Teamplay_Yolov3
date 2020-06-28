@@ -1,0 +1,131 @@
+import cv2
+import numpy as np
+import os, sys,argparse
+import glob
+import imutils
+
+def undistort(img_path,DIM,K,D):
+    img = cv2.imread(img_path)
+    h,w = img.shape[:2]
+    map1, map2 = cv2.fisheye.initUndistortRectifyMap(K, D, np.eye(3), K, DIM, cv2.CV_16SC2)
+    undistorted_img = cv2.remap(img, map1, map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+    undistorted_img = imutils.resize(undistorted_img,width=1080)
+    cv2.imshow("undistorted", undistorted_img)
+    cv2.waitKey()
+    cv2.destroyAllWindows()
+
+def save_coefficients(DIM,mtx, dist, path):
+    """ Save the camera matrix and save_text distortion coefficients to given path/file. """
+    path = '{path}'.format(path=path)
+    print(path)
+    cv_file = cv2.FileStorage(path, cv2.FILE_STORAGE_WRITE)
+    cv_file.write("DIM",DIM)
+    cv_file.write("K", mtx)
+    cv_file.write("D", dist)
+    # note you *release* you don't close() a FileStorage object
+    cv_file.release()
+    print("file saved")
+
+def load_coefficients(path):
+    """ Loads camera matrix and distortion coefficients. """
+    # FILE_STORAGE_READ
+    cv_file = cv2.FileStorage(path, cv2.FILE_STORAGE_READ)
+    # note we also have to specify the type to retrieve other wise we only get a
+    # FileNode object back instead of a matrix
+    DIM = cv_file.getNode("DIM").mat()
+    camera_matrix = cv_file.getNode("K").mat()
+    dist_matrix = cv_file.getNode("D").mat()
+    cv_file.release()
+    return camera_matrix, dist_matrix,(int(DIM[0]),int(DIM[1]))
+
+def arguments():
+    parser = argparse.ArgumentParser(description='Camera calibration')
+    parser.add_argument('--image_dir', type=str, required=True, help='image directory path')
+    parser.add_argument('--image_format', type=str, required=False,  help='image format, png/jpg')
+    parser.add_argument('--prefix', type=str, required=False, help='image prefix')
+    parser.add_argument('--save_file', type=str, required=False, help='YML file to save calibration matrices')
+    parser.add_argument('--read_yaml', type=str,required=False,help='chose yaml file to read')
+    args = parser.parse_args()
+    return parser,args
+
+def main(parser,args):
+    CHECKERBOARD = (6,9)
+    subpix_criteria = (cv2.TERM_CRITERIA_EPS+cv2.TERM_CRITERIA_MAX_ITER, 30, 0.1)
+    calibration_flags = cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC+cv2.fisheye.CALIB_CHECK_COND+cv2.fisheye.CALIB_FIX_SKEW
+    objp = np.zeros((1, CHECKERBOARD[0]*CHECKERBOARD[1], 3), np.float32)
+    objp[0,:,:2] = np.mgrid[0:CHECKERBOARD[0], 0:CHECKERBOARD[1]].T.reshape(-1, 2)
+
+    _img_shape = None
+    objpoints = [] # 3d point in real world space
+    imgpoints = [] # 2d points in image plane.
+    images = glob.glob('{folder}*.{format}'.format(folder=args.image_dir,format=args.image_format))
+    print('{folder}*.{format}'.format(folder=args.image_dir,format=args.image_format))
+    print(images)
+    count = 0
+    for fname in images:
+        img = cv2.imread(fname)
+        if count == 0 :
+            h,w = img.shape[:2]
+            count+=1
+        img = cv2.resize(img,(w,h))
+        if _img_shape == None:
+            _img_shape = img.shape[:2]
+        else:
+            assert _img_shape == img.shape[:2], "All images must share the same size."
+        gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+        # Find the chess board corners
+        ret, corners = cv2.findChessboardCorners(gray, CHECKERBOARD, cv2.CALIB_CB_ADAPTIVE_THRESH+cv2.CALIB_CB_FAST_CHECK+cv2.CALIB_CB_NORMALIZE_IMAGE)
+        # If found, add object points, image points (after refining them)
+        if ret == True:
+            objpoints.append(objp)
+            cv2.cornerSubPix(gray,corners,(3,3),(-1,-1),subpix_criteria)
+            imgpoints.append(corners)
+    N_OK = len(objpoints)
+    K = np.zeros((3, 3))
+    D = np.zeros((4, 1))
+    rvecs = [np.zeros((1, 1, 3), dtype=np.float64) for i in range(N_OK)]
+    tvecs = [np.zeros((1, 1, 3), dtype=np.float64) for i in range(N_OK)]
+    rms, _, _, _, _ = \
+        cv2.fisheye.calibrate(
+            objpoints,
+            imgpoints,
+            gray.shape[::-1],
+            K,
+            D,
+            rvecs,
+            tvecs,
+            calibration_flags,
+            (cv2.TERM_CRITERIA_EPS+cv2.TERM_CRITERIA_MAX_ITER, 30, 1e-6)
+        )
+
+    print("Found " + str(N_OK) + " valid images for calibration")
+    print("DIM = " + str(_img_shape[::-1]))
+    print("K = np.array(" + str(K.tolist()) + ")")
+    print("D = np.array(" + str(D.tolist()) + ")")
+
+    # You should replace these 3 lines with the output in calibration step
+    DIM =_img_shape[::-1]
+    K = np.array(K.tolist())
+    D = np.array(D.tolist())
+
+    save_coefficients(DIM,K,D,args.save_file)
+    for p in images:
+        print(p)
+        undistort(p,DIM,K,D)
+
+if __name__ == "__main__":
+    parser,args = arguments() 
+    if not args.read_yaml:
+        main(parser,args)
+    if args.read_yaml:
+        coeff = load_coefficients('{file}'.format(file=args.read_yaml))
+        K = coeff[0]
+        D = coeff[1]
+        DIM = coeff[2]
+        print(K,'\n')
+        print(D,'\n')
+        print(DIM,'\n')
+        images = glob.glob('{folder}*.{format}'.format(folder=args.image_dir,format=args.image_format))
+        for p in images:
+            print(p)
+            undistort(p,DIM,K,D)

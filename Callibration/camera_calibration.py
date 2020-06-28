@@ -45,7 +45,7 @@ def calibrate(dirpath, prefix, image_format, square_size, width=9, height=6):
 
 def save_coefficients(mtx, dist, path):
     """ Save the camera matrix and thsave_txte distortion coefficients to given path/file. """
-    # path = '/calib_matrix/{path}'.format(path=path)
+    path = 'calib_matrix/{path}'.format(path=path)
     cv_file = cv2.FileStorage(path, cv2.FILE_STORAGE_WRITE)
     cv_file.write("K", mtx)
     cv_file.write("D", dist)
@@ -158,8 +158,7 @@ def opencv_matrix(loader,node):
     mat.resize(mapping['rows'],mapping['cols'])
     return mat
 
-
-if __name__ == '__main__':
+def arguments():
     parser = argparse.ArgumentParser(description='Camera calibration')
     parser.add_argument('--image_dir', type=str, required=False, help='image directory path')
     parser.add_argument('--image_format', type=str, required=False,  help='image format, png/jpg')
@@ -176,6 +175,10 @@ if __name__ == '__main__':
     parser.add_argument('--zoom',action='store_true',required=False,help='zoom or not to zoom[True/False]')
     parser.add_argument('--view_vid',action='store_true',help='view video')
     args = parser.parse_args()
+    return parser,args
+
+if __name__ == '__main__':
+    parser,args = arguments()
 
     if args.read_yaml:
         coeff = load_coefficients('calib_matrix/{file}'.format(file=args.read_yaml))
@@ -200,6 +203,7 @@ if __name__ == '__main__':
         elif args.zoom:
             zoom(mtx,dist,args.read_vid,args.write_vid,args.zoom)
     else:
+        print(args.image_dir, args.prefix, args.image_format, args.square_size, args.width, args.height)
         ret, mtx, dist, rvecs, tvecs = calibrate(args.image_dir, args.prefix, args.image_format, args.square_size, args.width, args.height)
         if args.save_file:
             save_coefficients(mtx, dist, args.save_file)
