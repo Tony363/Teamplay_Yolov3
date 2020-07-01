@@ -401,7 +401,7 @@ def detect(save_img=False):
 
             # Stream results
             if view_img:
-                fullImg_resized = imutils.resize(fullImg, width=1080,height=1920)
+                fullImg_resized = imutils.resize(fullImg, width=1920,height=1080)
                 cv2.imshow(p, fullImg_resized)
                 if cv2.waitKey(1) == ord('q'):  # q to quit
                     raise StopIteration
