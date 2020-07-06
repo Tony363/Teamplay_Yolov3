@@ -25,16 +25,35 @@ def find(name, path):
         if name in files:
             return os.path.join(root, name)
 
+def load_yaml(parser,args):
+    if args.load_pts:
+        src_pts,dst_pts = load_pts(args.load_pts)
+        return src_pts,dst_pts
+    if args.homographic_points:
+        src_pts,dst_pts = load_coefficients(args.homographic_points)
+        return src_pts,dst_pts
+
+def load_pts(args):
+    src,dst = tuple(args)
+    src_file = cv2.FileStorage(f"homograph_pts/{src}",cv2.FILE_STORAGE_READ)
+    dst_file = cv2.FileStorage(f"homograph_pts/{dst}",cv2.FILE_STORAGE_READ)
+    src_pts = src_file.getNode("src_pts").mat()
+    dst_pts = dst_file.getNode("dst_pts").mat()
+    src_file.release()
+    dst_file.release()
+    print("size of both yml files: ",src_pts.size,dst_pts.size)
+    return src_pts,dst_pts
+
 def load_coefficients(path):
     """ Loads camera matrix and distortion coefficients. """
     # FILE_STORAGE_READ
     cv_file = cv2.FileStorage(path, cv2.FILE_STORAGE_READ)
     # note we also have to specify the type to retrieve other wise we only get a
     # FileNode object back instead of a matrix
-    camera_matrix = cv_file.getNode("src_pts").mat()
-    dist_matrix = cv_file.getNode("dst_pts").mat()
+    src_pts = cv_file.getNode("src_pts").mat()
+    dst_pts = cv_file.getNode("dst_pts").mat()
     cv_file.release()
-    return camera_matrix, dist_matrix
+    return src_pts,dst_pts
 
 def arguments():
     parser = argparse.ArgumentParser(description='Coordinate Homography')
@@ -46,6 +65,7 @@ def arguments():
     arg2 = .yaml model e.g. mask_rcnn_R_50_FPN_3x.yaml
     """)
     parser.add_argument('--homographic_points',type=str,required=False,default='/homographic_pts/homographic.yml',help='read src_pts and dst_pts yaml file')
+    parser.add_argument('--load_pts',nargs="+",type=str,required=False,help="load pts yml")
     args = parser.parse_args()
     return parser,args
 
@@ -202,8 +222,9 @@ def create_homograph(parser,args):
     print("[INFO] process took {:.4f} seconds".format(elap))
     print("Video created")
 
-if __name__ == "__main__":
 
+
+if __name__ == "__main__":
     # Use the boxes info from the tensor prediction result
     #
     # x1,y1 ------
@@ -212,7 +233,6 @@ if __name__ == "__main__":
     # |          |
     # --------x2,y2
     #
-
     # Four corners of the 3D court 
     # Start top-left corner and go anti-clock wise
     # Please manually extract homographic points from video for now
@@ -239,10 +259,8 @@ if __name__ == "__main__":
         ])    
 
     parser,args = arguments()
+    src_pts,dst_pts = load_yaml(parser,args)
 
-    if args.homographic_points:
-        src_pts,dst_pts = load_coefficients(args.homographic_points)
-        print(src_pts.shape,dst_pts.shape)
     img = cv2.imread("{image}".format(image=args.image))
     img_dst = cv2.imread('{court}'.format(court=args.court))
     players_output,cfg,predictor = load_cfg(parser,args)
