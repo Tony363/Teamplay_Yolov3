@@ -88,7 +88,7 @@ def getCroppedImage(img,centroid):
     return xmin ,xmax, ymin, ymax
 
 def undistortimg(mtx,dist,vid,view=False,write=False):
-    cap = cv2.VideoCapture('input_vid/{vid}.mp4'.format(vid=vid))
+    cap = cv2.VideoCapture('../input_vid/{vid}.mp4'.format(vid=vid))
     fourcc = cv2.VideoWriter_fourcc(*'mp4v') 
     count = 0
     total = 0

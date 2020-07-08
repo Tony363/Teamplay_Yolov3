@@ -22,6 +22,7 @@ def undistort_detailed(img_path,count,h,w,coeff, balance=0.0, dim2=None, dim3=No
     dim1 = img.shape[:2][::-1]  #dim1 is the dimension of input image to un-distort
     if count == 0:
         h,w = dim1
+        print(h,w)
     dim1 = (h,w)
     assert dim1[0]/dim1[1] == DIM[0]/DIM[1], "Image to undistort needs to have same aspect ratio as the ones used in calibration"
     if not dim2:
@@ -40,10 +41,46 @@ def undistort_detailed(img_path,count,h,w,coeff, balance=0.0, dim2=None, dim3=No
     cv2.destroyAllWindows()
     return h,w
 
+def undistort_vid(coeff,vid,view=False,write=False):
+    K,D,DIM = coeff
+    balance = 3.0
+    print('{vid}.mp4'.format(vid=vid))
+    cap = cv2.VideoCapture('{vid}'.format(vid=vid))
+    frame_count = 0
+    writer = None
+    undistort = True
+    while undistort:
+        ret,frame = cap.read()
+        if ret:
+            new_K = cv2.fisheye.estimateNewCameraMatrixForUndistortRectify(K, D, DIM, np.eye(3), balance=balance)
+            map1, map2 = cv2.fisheye.initUndistortRectifyMap(K, D, np.eye(3), new_K, DIM, cv2.CV_16SC2)
+            undistorted_img = cv2.remap(frame, map1, map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+            # no idea why no write to file
+            if writer is None:
+                writerh,writerw = undistorted_img.shape[:2]
+                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+                fps = cap.get(cv2.CAP_PROP_FPS)
+                writer = cv2.VideoWriter('../output/fisheye_output.mp4', fourcc, fps, (writerw,writerh),True) 
+            if view:
+                resized = imutils.resize(undistorted_img,width=1080)
+                cv2.imshow('frame',resized)
+                if cv2.waitKey(1) == ord('q'):  # q to quit
+                    undistort = False
+            if write:
+               writer.write(undistorted_img)
+            frame_count += 1 
+            print("frame count = ",frame_count)
+        else:
+            print("end of video")
+            undistort = False
+    writer.release()
+    cap.release()
+    cv2.destroyAllWindows()
+
 def save_coefficients(DIM,mtx, dist, path):
     """ Save the camera matrix and save_text distortion coefficients to given path/file. """
     path = '{path}'.format(path=path)
-    print(path)
+    # print(path)
     cv_file = cv2.FileStorage(path, cv2.FILE_STORAGE_WRITE)
     cv_file.write("DIM",DIM)
     cv_file.write("K", mtx)
@@ -66,10 +103,13 @@ def load_coefficients(path):
 
 def arguments():
     parser = argparse.ArgumentParser(description='Camera calibration')
-    parser.add_argument('--image_dir', type=str, required=True, help='image directory path')
-    parser.add_argument('--image_format', type=str, required=True,  help='image format, png/jpg')
+    parser.add_argument('--image_dir', type=str, required=False,help='test sample image folder')
+    parser.add_argument('--image_format', type=str, required=False,  help='image format, png/jpg')
     parser.add_argument('--save_file', type=str, required=False, help='YML file to save calibration matrices')
     parser.add_argument('--read_yaml', type=str,required=False,help='chose yaml file to read')
+    parser.add_argument('--read_vid',type=str,required=False,help='enter video to read')
+    parser.add_argument('--view_vid',action='store_true',help='view video')
+    parser.add_argument('--write_vid',action='store_true',help='can\'t write video while viewing video')
     parser.add_argument('--detailed',nargs='+',type=float,required=False,
     help=
     """
@@ -155,6 +195,12 @@ def read_matrix(parser,args):
             count += 1
             dim2 = (int(h + h * args.detailed[1]), int(w + w * args.detailed[1]))
             dim3 = (int(h + h * args.detailed[2]), int(w + w * args.detailed[2]))
+    elif args.view_vid:
+        K,D,DIM = coeff
+        undistort_vid(coeff,args.read_vid,args.view_vid)
+    elif args.write_vid:
+        K,D,DIM = coeff
+        undistort_vid(coeff,args.read_vid,False,args.write_vid)
     else:
         for p in images:
             print(p)
@@ -164,5 +210,6 @@ if __name__ == "__main__":
     parser,args = arguments() 
     if not args.read_yaml:
         get_matrix(parser,args)
-    if args.read_yaml:
+    elif args.read_yaml:
         read_matrix(parser,args)
+    
