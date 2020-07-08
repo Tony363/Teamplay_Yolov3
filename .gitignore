@@ -21,6 +21,7 @@
 *.csv
 *.cfg
 *.jpg
+*.png
 !cfg/yolov3*.cfg
 
 storage.googleapis.com
