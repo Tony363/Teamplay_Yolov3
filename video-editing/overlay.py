@@ -25,6 +25,7 @@ def readCommand():
     parser.add_argument("overlayPath", help="path to the image overlay")
     parser.add_argument("-o", "--opacity", type=float, default=0.5, help="overlay opacity")
     parser.add_argument("-l", "--lines", action='store_true', help="show selected corners and lines")
+    parser.add_argument("-v", "--view_img", action='store_true', help="display intermediate images")
     args = vars(parser.parse_args())
     return args
 
@@ -70,7 +71,6 @@ def select_corners(event, x, y, flags, param):
 
             # Get the transparent overlay (with the original image background)
             # Using transparent overlay allows to remove the logo transparency
-            # 07/07 Notes : the logo has some black borders.
             im_out = transparentOverlay(imageTemp, warped_image, ptsDst)
 
             # Blend the two images
@@ -80,15 +80,16 @@ def select_corners(event, x, y, flags, param):
 
             # Display images
             cv2.imshow("Source Overlay Image", overlaySrc)
+            cv2.imshow("Warped Overlay Image", warped_image)
+            cv2.imshow("Transparent Overlay Image", im_out)
             cv2.imshow("Destination Image", imageFinal)
-            cv2.imshow("Warped Overlay Image", im_out)
 
             # Save final image
             cv2.imwrite(RESULT_IMG, imageFinal)
 
     
- 
-# args : source image, warped overlay (FULL) image, destination points 
+# This method applies the warped overlay (Transformed overlay with black background) to the original image
+# args : source image, warped overlay image, destination points 
 # returns the warped overlay with the source background
 def transparentOverlay(src, overlay, dstPts):
 
@@ -99,16 +100,35 @@ def transparentOverlay(src, overlay, dstPts):
     xmax = max(list(map(lambda pos: pos[0], dstPts )))
 
     
-
+    
     # Slow loop
+    """
     for i in range(ymin, ymax):
         for j in range(xmin, xmax):
             if overlay[i][j][3] > 0: # alpha channel
                 alpha = float(overlay[i][j][3] / 255.0)  # read the alpha channel
                 src[i][j] = alpha * overlay[i][j] + (1 - alpha) * src[i][j]
+    """
 
-    # Numpy loop
-    # TODO
+    # Numpy loop (fast-loop)
+    src_sub = np.asarray(src[ymin:ymax,xmin:xmax])
+    overlay_sub = np.asarray(overlay[ymin:ymax, xmin:xmax])
+
+    # Extract transparency layer
+    overlay_alpha = overlay_sub[:,:,3]
+    overlay_alpha = overlay_alpha / 255.0
+    overlay_alpha_3d = np.repeat(overlay_alpha[:, :, np.newaxis], 4, axis=2)
+
+
+
+    # Element wise condition replacing
+    # Replace the src image pixel by overlay pixel if pixel is located in the same position
+    transparent_sub = np.where(overlay_alpha_3d / 255.0 > 0, overlay_alpha_3d * overlay_sub + (1-overlay_alpha_3d) * src_sub, src_sub )
+    
+    # Replace on original image
+    src[ymin:ymax, xmin:xmax] = transparent_sub
+    
+
 
     return src
 
@@ -180,8 +200,8 @@ if __name__ == '__main__' :
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         totalFrames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        vid_writer = cv2.VideoWriter(RESULT_VID, cv2.VideoWriter_fourcc('m','p','4','v'), fps, (1920, 1080))
-
+        #vid_writer = cv2.VideoWriter(RESULT_VID, cv2.VideoWriter_fourcc('m','p','4','v'), fps, (1920, 1080))
+        vid_writer = cv2.VideoWriter(RESULT_VID, cv2.VideoWriter_fourcc('m','p','4','v'), fps, (1920, 879))
         # Read overlay image
         overlaySrc = cv2.imread(args["overlayPath"],cv2.IMREAD_UNCHANGED)
         if overlaySrc.shape[2] != 4:
@@ -196,20 +216,20 @@ if __name__ == '__main__' :
 
         while(True):
             ret, frame = cap.read()
+            
             if ret == True:
                 # Start timer
                 start_time = time.time()
-
                 # Add the extra dimension related to transparency if extension does not handle alpha channel (..jpg)
                 if frame.shape[2] != 4:
-                    frame = np.dstack([frame, np.ones((frame.shape[0], frame.shape[1]), dtype="uint8") * 255])
+                    frame = np.dstack([frame, np.ones((frame.shape[0], frame.shape[1]), dtype="uint8") * 255]) # Slow operation ...
                 frame = imutils.resize(frame, width=1920)
-
                 # Clone image to apply transparency on overlay
                 imageTemp = frame.copy()
                 imageFinal = frame.copy()
                 # Clone image to reset the overlay
                 imageReset = frame.copy() 
+                
 
                 # Apply the overlay on the first frame 
                 if readFrames == 0:
@@ -248,21 +268,21 @@ if __name__ == '__main__' :
                     
                     # Get the transparent overlay (with the original image background)
                     # Using transparent overlay allows to remove the logo transparency
-                    # 07/07 Notes : the logo has some black borders.
-                    # 08/07 Notes : 2 for loops slow
                     im_out = transparentOverlay(imageTemp, warped_image, ptsDst)
                     
                     # Blend the two images
                     # Opacity is the transparency of the overlay. It is also possible to adjust the beta and gamma parameters from the OpenCV function (See cv2.addWeighted)
                     # docs : https://docs.opencv.org/2.4/modules/core/doc/operations_on_arrays.html
+                    
                     cv2.addWeighted(im_out, opacity, imageFinal, 1-opacity , 0, imageFinal)
                 
-                # Display the image and wait for a keypress
+
+                imageFinal = imageFinal[:,:,:3]
+                print("Image final shape : {}".format(imageFinal.shape))
+                #Display the image and wait for a keypress
                 cv2.imshow("Final image", imageFinal)
 
                 # Write image in video writer
-                print("Image final shape : {}".format(imageFinal.shape))
-
                 vid_writer.write(imageFinal)
  
                 # Press 'Q' to quit the program
@@ -271,13 +291,12 @@ if __name__ == '__main__' :
                 
 
                 # End timer
-                print("[INFO] Frame {}/{} Done. {:.3f} s".format(readFrames,totalFrames,float(time.time() - start_time)))
+                print("[INFO] Frame {}/{} Done. {:.3f} s".format(readFrames + 1,totalFrames,float(time.time() - start_time)))
                 
                 # Increment number of frames read
                 readFrames += 1      
 
             else:
-                raise Exception('Read frame failed')
                 break
 
         print("[INFO] Clean memory ... ") 
