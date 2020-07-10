@@ -105,7 +105,7 @@ def homographyTransform(im, showResult=False):
         cv2.imwrite('images/homographyTransform.png',img_out)
     return img_out  
 
-def getPlayersMask(im,img_out,write=False):
+def getPlayersMask(im,write=False):
     lower_range = np.array([255,0,0])                         # Set the Lower range value of blue in BGR
     upper_range = np.array([255,155,155])                     # Set the Upper range value of blue in BGR
     mask = cv2.inRange(im, lower_range, upper_range)     # Create a mask with range
@@ -223,14 +223,14 @@ def create_homograph(parser,args,cfg,predictor,im0):
             cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             cnts = imutils.grab_contours(cnts)  
             if cnts is not None: 
-                print(cnts)     
+                # print(cnts)     
                 for cnt in cnts:
                     result = drawPlayersOnCourt(court, cnt[0], blue_color)   
-                    print(result.shape[:2])                    
+                    # print(result.shape[:2])                    
                     cv2.imshow("court_players",result)
                     if cv2.waitKey(1) == ord('q'):  # q to quit
                         grabbed = False
-                    court_writer.write(result)
+            court_writer.write(result)
             currentFrame += 1
             bar.update(currentFrame)
         else:
@@ -286,25 +286,26 @@ if __name__ == "__main__":
 
     img = cv2.imread("{image}".format(image=args.image))
     img_dst = cv2.imread('{court}'.format(court=args.court))
+    
     players_output,cfg,predictor = load_cfg(parser,args,img)
 
     # look at the outputs. See https://detectron2.readthedocs.io/tutorials/models.html#model-output-format for specification
     instances = players_output["instances"]
-    print(instances)
+    # print(instances)
     pred_boxes = instances.get("pred_boxes")
     pred_classes = instances.get("pred_classes")
-    print(pred_boxes)
-    print(pred_classes)
+    # print(pred_boxes)
+    # print(pred_classes)
 
     # Pimage_box = Visualizer_pred(img,cfg,players_output)
 
     
-    # polylines(img,src_pts,dst_pts) 
-    # drawPlayers(img, pred_boxes, True,pred_classes)
+    polylines(img,src_pts,dst_pts) 
+    drawPlayers(img, pred_boxes,pred_classes, True)
     # Try out
     img_out = homographyTransform(img, True)
     # Try out  
-    # mask = getPlayersMask(img_out)    
+    mask = getPlayersMask(img_out)    
     # cv2.imshow('mask',mask)
 
     # create_homograph(parser,args,cfg,predictor,img_out)
@@ -340,12 +341,13 @@ if __name__ == "__main__":
             writer = cv2.VideoWriter("tennis_homographic.mp4", fourcc, fps, (court_img.shape[1], court_img.shape[0]), True)
             # box_writer = cv2.VideoWriter("player_box.mp4",fourcc,fps,(im.shape[1],im.shape[0]),True)
         if grabbed:
-            print(currentFrame)
-            players_output = predictor(frame)# predict on frame
+            # print(currentFrame)
+    
             # Get player positions
             outputs = predictor(frame)  
             instances = outputs["instances"].to("cpu")
             boxes = instances.get("pred_boxes")
+            pred_classes = instances.get("pred_classes")
 
             # v = Visualizer(frame[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.0)
             # v = v.draw_instance_predictions(players_output["instances"].to("cpu"))
@@ -358,20 +360,20 @@ if __name__ == "__main__":
             im0 = homographyTransform(frame, False)
             # cv2_imshow(img_out)
 
-            mask = getPlayersMask(im0,img_out)
+            mask = getPlayersMask(im0)
             
-            # cv2_imshow(mask)
+            # cv2.imshow('mask',mask)
 
             # Get the contours from the players "dots" so we can reduce the coordinates
-            # to the number of players on the court.
+            # to the number of players on the court.  print(cnts)  print(cnts)
             cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             cnts = imutils.grab_contours(cnts)
-        
+    
             if cnts is not None:  
-                print(cnts)    
+                print(cnts) 
                 for cnt in cnts:
                     result = drawPlayersOnCourt(court, cnt[0], blue_color)                    
-                    writer.write(result)
+                writer.write(result)
                 # box_writer.write(v.get_image()[:, :, ::-1])
 
                 currentFrame += 1
@@ -382,15 +384,15 @@ if __name__ == "__main__":
 
         # cv2_imshow(result)
             
-        writer.release()
-        # box_writer.release()
-        vs.release()
-        bar.finish()
+    writer.release()
+    # box_writer.release()
+    vs.release()
+    bar.finish()
 
-        end = time.time()
-        elap = (end - start)
-        print("[INFO] process took {:.4f} seconds".format(elap))
+    end = time.time()
+    elap = (end - start)
+    print("[INFO] process took {:.4f} seconds".format(elap))
 
-        print("Video created")
+    print("Video created")
 
 
