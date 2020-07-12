@@ -223,7 +223,7 @@ def create_homograph(args,cfg,predictor,src_pts,dst_pts,img_dst):
             # player detection box
             if args.detect_box:
                 v = Visualizer(frame[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.0)
-                v = v.draw_instance_predictions(output["instances"].to("cpu"))
+                v = v.draw_instance_predictions(outputs["instances"].to("cpu"))
                 cv2.imshow("detection_box",v.get_image()[:, :, ::-1])
                 detection_writer.write(v.get_image()[:, :, ::-1])
             img_out = homographyTransform(frame,src_pts,dst_pts,img_dst, False)
