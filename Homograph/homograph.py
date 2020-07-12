@@ -20,12 +20,27 @@ from detectron2.utils.visualizer import GenericMask
 
 
 
-def find(name, path):
-    for root, dirs, files in os.walk(path):
-        if name in files:
-            return os.path.join(root, name)
+def load_cfg(parser,args):
+    """
+    Function to load config
+    -detection_dir: directory of where you compiled detectron2 to that contains the models
+    -model: the object detection model you will be using
+    """
+    detectron_model,model = args.cfg_model
+    cfg = get_cfg()
+    cfg.MODEL.DEVICE = 'cpu' # for cpu usage
+    cfg.merge_from_file('{detectron_dir}/{model}'.format(detectron_dir=detectron_model,model=model))
+
+    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set threshold for this model
+    cfg.MODEL.WEIGHTS = "detectron2://COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x/137849600/model_final_f10217.pkl"
+
+    predictor = DefaultPredictor(cfg)
+    return cfg,predictor
 
 def load_yaml(parser,args):
+    """
+    Function that handles loading of different homographic points to match
+    """
     if args.load_pts:
         src_pts,dst_pts = load_pts(args.load_pts)
         return src_pts,dst_pts
@@ -34,6 +49,9 @@ def load_yaml(parser,args):
         return src_pts,dst_pts
 
 def load_pts(args):
+    """
+    Function that loads manual extracted src_pts and dst_pts
+    """
     src,dst = tuple(args)
     src_file = cv2.FileStorage(f"homograph_pts/{src}",cv2.FILE_STORAGE_READ)
     dst_file = cv2.FileStorage(f"homograph_pts/{dst}",cv2.FILE_STORAGE_READ)
@@ -45,7 +63,7 @@ def load_pts(args):
     return src_pts,dst_pts
 
 def load_coefficients(path):
-    """ Loads camera matrix and distortion coefficients. """
+    """ Loads src_pts and dst_pts that are auto generated. More tests needs be done """
     # FILE_STORAGE_READ
     cv_file = cv2.FileStorage(path, cv2.FILE_STORAGE_READ)
     # note we also have to specify the type to retrieve other wise we only get a
@@ -70,7 +88,7 @@ def arguments():
     args = parser.parse_args()
     return parser,args
 
-def drawPlayers(im, pred_boxes,pred_classes, showResult=False):
+def drawPlayers(im, pred_boxes,pred_classes,src_pts, showResult=False):
     color = [255, 0, 0]   
     thickness = 1
     radius = 1
@@ -93,11 +111,10 @@ def drawPlayers(im, pred_boxes,pred_classes, showResult=False):
             cv2.rectangle(im, player_pos1, player_pos2, color, thickness)
             i = i + 1            
     if showResult:
-        cv2.imshow('players',im)
-        cv2.waitKey(1000)
+        cv2.imwrite('images/drawPlayers.png',im)
 
       
-def homographyTransform(im, showResult=False):
+def homographyTransform(im,src_pts,dst_pts,img_dst, showResult=False):
     # Calculate Homography
     h, status = cv2.findHomography(src_pts, dst_pts)
     img_out = cv2.warpPerspective(im, h, (img_dst.shape[1], img_dst.shape[0]))
@@ -109,13 +126,14 @@ def getPlayersMask(im,write=False):
     lower_range = np.array([255,0,0])                         # Set the Lower range value of blue in BGR
     upper_range = np.array([255,155,155])                     # Set the Upper range value of blue in BGR
     mask = cv2.inRange(im, lower_range, upper_range)     # Create a mask with range
-    result = cv2.bitwise_and(im, img_out, mask = mask)   # Performing bitwise and operation with mask in img variable
+    result = cv2.bitwise_and(im, im, mask = mask)   # Performing bitwise and operation with mask in img variable
     if write:
         cv2.imwrite("images/getPlayersMask.png",result)                              
     return cv2.inRange(result, lower_range, upper_range)  
 
 def drawPlayersOnCourt(im, coord, color, radius=10):
     # print(len(coord))
+    """ Function that draws the players on the court """
     for pos in coord:
         center_coordinates = (pos[0], pos[1])
         cv2.circle(im, center_coordinates, radius, color, thickness=-1) 
@@ -139,56 +157,50 @@ def drawCoordinateLines(result, pts, currentFrame, player):
         cv2.line(result, (x1, x2), (y1, y2), red_color, thickness)
     return result
 
-def load_cfg(parser,args,img):
-    detectron_model,model = args.cfg_model
-    cfg = get_cfg()
-    cfg.MODEL.DEVICE = 'cpu' # for cpu usage
-    cfg.merge_from_file('{detectron_dir}/{model}'.format(detectron_dir=detectron_model,model=model))
-
-    cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set threshold for this model
-    cfg.MODEL.WEIGHTS = "detectron2://COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x/137849600/model_final_f10217.pkl"
-
-    predictor = DefaultPredictor(cfg)
-    players_output = predictor(img)
-    return players_output,cfg,predictor
-
-def Visualizer_pred(img,cfg,players_output):
-    # We can use `Visualizer` to draw the predictions on the image.
+def Visualizer_pred(img,cfg,players_output,write=False):
+    """
+    We can use `Visualizer` to draw the predictions on the image.
+    Draws detection boxes of detected objects to file
+    """
     v = Visualizer(img[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.0)
     v = v.draw_instance_predictions(players_output["instances"].to("cpu"))
-    cv2.imwrite("images/Visualizer_pred.png",v.get_image()[:,:,::-1])
+    if write:
+        cv2.imwrite("images/Visualizer_pred.png",v.get_image()[:,:,::-1])
     return v.get_image()[:,:,::-1]
     
    
 
-def polylines(img,src_pts,dst_pts):
-    im_poly = img.copy()
+def polylines(img,src_pts,dst_pts,write=False):
     # cv2.fillPoly(img_src, [src_pts], 255)
-    cv2.polylines(im_poly, [src_pts], isClosed=True, color=[255,0,0], thickness=2)
-    cv2.imwrite("images/polylines1.png",im_poly)
+    """ Draws polylines """
+    cv2.polylines(img, [src_pts], isClosed=True, color=[255,0,0], thickness=2)
     cv2.polylines(img_dst, [dst_pts], isClosed=True, color=[255,0,0], thickness=2)
-    cv2.imwrite("images/polylines2.png",img_dst)
+    if write:
+        cv2.imwrite("images/polylines1.png",img)
+        cv2.imwrite("images/polylines2.png",img_dst)
     
 
-def create_homograph(parser,args,cfg,predictor,im0):
+def create_homograph(args,cfg,predictor,src_pts,dst_pts,img_dst):
     vs = cv2.VideoCapture("{video}".format(video=args.video))
-    totalFrames = int(vs.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    currentFrame = 0
-    start = time.time()
-    grabbed = True
-    court_writer = None
-    detection_writer = None
-
-    bar = progressbar.ProgressBar(maxval=totalFrames, \
-        widgets=[progressbar.Bar('=', '[', ']'), ' ', progressbar.Percentage()])
-    bar.start()
-
     court_img = cv2.imread('{court}'.format(court=args.court))
     vid_img = cv2.imread('{vid_image}'.format(vid_image=args.image))
     
+    # timer stats
+    totalFrames = int(vs.get(cv2.CAP_PROP_FRAME_COUNT))
+    currentFrame = 0
+    start = time.time()
+    bar = progressbar.ProgressBar(maxval=totalFrames, \
+        widgets=[progressbar.Bar('=', '[', ']'), ' ', progressbar.Percentage()])
+    bar.start()
+    
+    
     blue_color = (255,0,0)
     red_color = (0,0,255)
+    
+    # init writer and video status
+    grabbed = True
+    court_writer = None
+    detection_writer = None
     # loop over frames from the video file stream (207)
     while grabbed:     
         # read the next frame from the file
@@ -207,35 +219,32 @@ def create_homograph(parser,args,cfg,predictor,im0):
             # Get player positions
             court = court_img.copy()
             # Draw players on video frame
-            drawPlayers(frame, boxes,pred_classes, False)
+            drawPlayers(frame, boxes,pred_classes,src_pts, False)
             # player detection box
             if args.detect_box:
                 v = Visualizer(frame[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.0)
-                v = v.draw_instance_predictions(players_output["instances"].to("cpu"))
+                v = v.draw_instance_predictions(output["instances"].to("cpu"))
                 cv2.imshow("detection_box",v.get_image()[:, :, ::-1])
                 detection_writer.write(v.get_image()[:, :, ::-1])
-            img_out = homographyTransform(frame, False)
-            # cv2_imshow(img_out)
-            mask = getPlayersMask(img_out,im0)
-            # cv2.imshow('mask',mask)
+            img_out = homographyTransform(frame,src_pts,dst_pts,img_dst, False)
+            cv2.imshow('homographyTransform',img_out)
+            mask = getPlayersMask(img_out)
+            cv2.imshow('mask',mask)
             # Get the contours from the players "dots" so we can reduce the coordinates
             # to the number of players on the court.
             cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            cnts = imutils.grab_contours(cnts)  
+            cnts = imutils.grab_contours(cnts)
             if cnts is not None: 
-                # print(cnts)     
                 for cnt in cnts:
-                    result = drawPlayersOnCourt(court, cnt[0], blue_color)   
-                    # print(result.shape[:2])                    
-                    cv2.imshow("court_players",result)
-                    if cv2.waitKey(1) == ord('q'):  # q to quit
-                        grabbed = False
+                    result = drawPlayersOnCourt(court, cnt[0], blue_color)                 
             court_writer.write(result)
             currentFrame += 1
-            bar.update(currentFrame)
+            bar.update(currentFrame)   
+            cv2.imshow('result',result)
+            if cv2.waitKey(1) == ord('q'):  # q to quit
+                raise StopIteration 
         else:
             grabbed = False
-    # cv2_imshow(result)  
     court_writer.release()
     detection_writer.release()
     vs.release()
@@ -259,140 +268,39 @@ if __name__ == "__main__":
     # Four corners of the 3D court 
     # Start top-left corner and go anti-clock wise
     # Please manually extract homographic points from video for now
-    src_pts = np.array([
-            [0,711],
-            [954,821],
-            [1919,762],
-            [1919,631],
-            [1493,525],
-            [493,505],
-            [4,608]
-        ]) 
 
     # Four corners of the court + mid-court circle point in destination image 
     # Start top-left corner and go anti-clock wise + mid-court circle point
-    dst_pts = np.array([
-        [144,  1060],  # LEFT BOTTOM
-        [969,  1065],  # MIDDLE BOTTOM
-        [1769, 1063],  # RIGHT BOTTOM
-        [1885, 875],   # TOP BOTTOM RIGHT  (4 o'clock)
-        [1882,  49],   # TOP RIGHT
-        [50,    43],   # TOP LEFT
-        [50,    871]   # TOP - BOTTOM LEFT (7 o'clock)
-        ])    
+  
+    # LEFT BOTTOM
+    # MIDDLE BOTTOM
+    # RIGHT BOTTOM
+    # TOP BOTTOM RIGHT  (4 o'clock)
+    # TOP RIGHT
+    # TOP LEFT
+    # TOP - BOTTOM LEFT (7 o'clock)
 
     parser,args = arguments()
-    src_pts,dst_pts = load_yaml(parser,args)
+    src_pts,dst_pts = load_yaml(parser,args) # load source points and destination points
 
     img = cv2.imread("{image}".format(image=args.image))
     img_dst = cv2.imread('{court}'.format(court=args.court))
-    
-    players_output,cfg,predictor = load_cfg(parser,args,img)
 
+    cfg,predictor = load_cfg(parser,args) # load configs and predictor model
+    
     # look at the outputs. See https://detectron2.readthedocs.io/tutorials/models.html#model-output-format for specification
-    instances = players_output["instances"]
-    # print(instances)
-    pred_boxes = instances.get("pred_boxes")
-    pred_classes = instances.get("pred_classes")
-    # print(pred_boxes)
-    # print(pred_classes)
+    players_output = predictor(img) # first predict on image
+    instances = players_output["instances"] # extract prediction instance
+    pred_boxes = instances.get("pred_boxes") # extract instance pred boxes
+    pred_classes = instances.get("pred_classes") # extract instance pred classes
 
-    # Pimage_box = Visualizer_pred(img,cfg,players_output)
+    # Test out model params on images first
+    Pimage_box = Visualizer_pred(img,cfg,players_output,True)
+    polylines(img,src_pts,dst_pts,True) 
+    drawPlayers(img, pred_boxes,pred_classes,src_pts, True)
+    img_out = homographyTransform(img,src_pts,dst_pts,img_dst, True) 
+    mask = getPlayersMask(img_out,True)  
 
-    
-    polylines(img,src_pts,dst_pts) 
-    drawPlayers(img, pred_boxes,pred_classes, True)
-    # Try out
-    img_out = homographyTransform(img, True)
-    # Try out  
-    mask = getPlayersMask(img_out)    
-    # cv2.imshow('mask',mask)
-
-    # create_homograph(parser,args,cfg,predictor,img_out)
-    vs = cv2.VideoCapture("{video}".format(video=args.video))
-    totalFrames = int(vs.get(cv2.CAP_PROP_FRAME_COUNT))
-
-    grabbed = True
-    currentFrame = 0
-    start = time.time()
-    writer = None
-    box_writer = None
-
-    bar = progressbar.ProgressBar(maxval=totalFrames, \
-        widgets=[progressbar.Bar('=', '[', ']'), ' ', progressbar.Percentage()])
-
-    bar.start()
-
-    court_img = cv2.imread('{court}'.format(court=args.court))
-    vid_img = cv2.imread('{vid_image}'.format(vid_image=args.image))
-
-    blue_color = (255,0,0)
-    red_color = (0,0,255)
-
-    # loop over frames from the video file stream (207)
-    while grabbed:     
-        
-        # read the next frame from the file
-        (grabbed, frame) = vs.read()
-
-        if writer is None and box_writer is None:
-            fps = vs.get(cv2.CAP_PROP_FPS)
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-            writer = cv2.VideoWriter("tennis_homographic.mp4", fourcc, fps, (court_img.shape[1], court_img.shape[0]), True)
-            # box_writer = cv2.VideoWriter("player_box.mp4",fourcc,fps,(im.shape[1],im.shape[0]),True)
-        if grabbed:
-            # print(currentFrame)
-    
-            # Get player positions
-            outputs = predictor(frame)  
-            instances = outputs["instances"].to("cpu")
-            boxes = instances.get("pred_boxes")
-            pred_classes = instances.get("pred_classes")
-
-            # v = Visualizer(frame[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.0)
-            # v = v.draw_instance_predictions(players_output["instances"].to("cpu"))
-
-            court = court_img.copy()
-
-            # Draw players on video frame
-            drawPlayers(frame, boxes,pred_classes, False)
-            
-            im0 = homographyTransform(frame, False)
-            # cv2_imshow(img_out)
-
-            mask = getPlayersMask(im0)
-            
-            # cv2.imshow('mask',mask)
-
-            # Get the contours from the players "dots" so we can reduce the coordinates
-            # to the number of players on the court.  print(cnts)  print(cnts)
-            cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-            cnts = imutils.grab_contours(cnts)
-    
-            if cnts is not None:  
-                print(cnts) 
-                for cnt in cnts:
-                    result = drawPlayersOnCourt(court, cnt[0], blue_color)                    
-                writer.write(result)
-                # box_writer.write(v.get_image()[:, :, ::-1])
-
-                currentFrame += 1
-                bar.update(currentFrame)
-        
-        else:
-            grabbed = False
-
-        # cv2_imshow(result)
-            
-    writer.release()
-    # box_writer.release()
-    vs.release()
-    bar.finish()
-
-    end = time.time()
-    elap = (end - start)
-    print("[INFO] process took {:.4f} seconds".format(elap))
-
-    print("Video created")
-
+    # write to video
+    create_homograph(args,cfg,predictor,src_pts,dst_pts,img_dst)
 
