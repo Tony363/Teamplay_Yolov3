@@ -224,12 +224,13 @@ def create_homograph(args,cfg,predictor,src_pts,dst_pts,img_dst):
             if args.detect_box:
                 v = Visualizer(frame[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.0)
                 v = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-                cv2.imshow("detection_box",v.get_image()[:, :, ::-1])
+                box_resized = imutils.resize(v.get_image()[:, :, ::-1],width=1080)
+                cv2.imshow("detection_box",box_resized)
                 detection_writer.write(v.get_image()[:, :, ::-1])
             img_out = homographyTransform(frame,src_pts,dst_pts,img_dst, False)
-            cv2.imshow('homographyTransform',img_out)
+            # cv2.imshow('homographyTransform',img_out)
             mask = getPlayersMask(img_out)
-            cv2.imshow('mask',mask)
+            # cv2.imshow('mask',mask)
             # Get the contours from the players "dots" so we can reduce the coordinates
             # to the number of players on the court.
             cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -239,7 +240,8 @@ def create_homograph(args,cfg,predictor,src_pts,dst_pts,img_dst):
                     result = drawPlayersOnCourt(court, cnt[0], blue_color)                 
             court_writer.write(result)
             currentFrame += 1
-            bar.update(currentFrame)   
+            bar.update(currentFrame)
+            result = imutils.resize(result,width=1080)   
             cv2.imshow('result',result)
             if cv2.waitKey(1) == ord('q'):  # q to quit
                 raise StopIteration 
@@ -295,11 +297,11 @@ if __name__ == "__main__":
     pred_classes = instances.get("pred_classes") # extract instance pred classes
 
     # Test out model params on images first
-    Pimage_box = Visualizer_pred(img,cfg,players_output,True)
-    polylines(img,src_pts,dst_pts,True) 
-    drawPlayers(img, pred_boxes,pred_classes,src_pts, True)
-    img_out = homographyTransform(img,src_pts,dst_pts,img_dst, True) 
-    mask = getPlayersMask(img_out,True)  
+    # Pimage_box = Visualizer_pred(img,cfg,players_output,True)
+    # polylines(img,src_pts,dst_pts,True) 
+    # drawPlayers(img, pred_boxes,pred_classes,src_pts, True)
+    # img_out = homographyTransform(img,src_pts,dst_pts,img_dst, True) 
+    # mask = getPlayersMask(img_out,True)  
 
     # write to video
     create_homograph(args,cfg,predictor,src_pts,dst_pts,img_dst)
