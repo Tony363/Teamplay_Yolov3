@@ -27,9 +27,14 @@ class CoordinateStore:
         cv_file.release()
         print("file saved")
 
-def main(*args):
-    if len(args) > 1:
-        print(args)
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="src_pts or dst_pts")
+    parser.add_argument("--image",type=str,required=True,help="chose image from images/")
+    parser.add_argument("--resized",action="store_true",required=False,help='resize window')
+    parser.add_argument("--src",action="store_true",required=False,help="src_pts true")
+    parser.add_argument("--dst",action="store_true",required=False,help="dst_pts true")
+    args = parser.parse_args()
+
     img = cv2.imread('{image}'.format(image=args.image))
     resized = imutils.resize(img,width=1080)
     resized_ratio = img.shape[1]/resized.shape[1]
@@ -53,11 +58,3 @@ def main(*args):
     print("Selected Coordinates: ",np.array(coordinateStore1.points))
     if args.src or args.dst:
         coordinateStore1.save_pts(np.array(coordinateStore1.points),args) 
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="src_pts or dst_pts")
-    parser.add_argument("--image",type=str,required=True,help="chose image from images/")
-    parser.add_argument("--src",action="store_true",required=False,help="src_pts true")
-    parser.add_argument("--dst",action="store_true",required=False,help="dst_pts true")
-    args = parser.parse_args()
-    main(args)
