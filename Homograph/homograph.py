@@ -108,7 +108,7 @@ def drawPlayers(im, pred_boxes,pred_classes,src_pts, showResult=False):
             if Point(player_pos1).within(court):
                 if showResult:
                     print("[% 3d, % 3d]" %(xc, y2))
-            cv2.rectangle(im, player_pos1, player_pos2, color, thickness)
+                cv2.rectangle(im, player_pos1, player_pos2, color, thickness)
             i = i + 1            
     if showResult:
         cv2.imwrite('images/drawPlayers.png',im)
@@ -228,15 +228,15 @@ def create_homograph(args,cfg,predictor,src_pts,dst_pts,img_dst):
                 cv2.imshow("detection_box",box_resized)
                 detection_writer.write(v.get_image()[:, :, ::-1])
             img_out = homographyTransform(frame,src_pts,dst_pts,img_dst,True)
-            cv2.imshow('homographyTransform',img_out)
+            # cv2.imshow('homographyTransform',img_out)
             mask = getPlayersMask(img_out,True)
-            cv2.imshow('mask',mask)
+            # cv2.imshow('mask',mask)
             # Get the contours from the players "dots" so we can reduce the coordinates
             # to the number of players on the court.
             cnts = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             cnts = imutils.grab_contours(cnts)
             if cnts is not None:
-                print(cnts) 
+                # print(cnts) 
                 for cnt in cnts:
                     result = drawPlayersOnCourt(court, cnt[0], blue_color)                 
             court_writer.write(result)
