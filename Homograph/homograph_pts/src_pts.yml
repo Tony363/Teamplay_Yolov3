@@ -1,8 +1,7 @@
 %YAML:1.0
 ---
 src_pts: !!opencv-matrix
-   rows: 8
-   cols: 2
-   dt: i
-   data: [ 1, 1180, 2214, 1852, 4643, 1547, 4496, 733, 3616, 745, 2505,
-       284, 1207, 199, 630, 418 ]
+   rows: 0
+   cols: 1
+   dt: d
+   data: []
