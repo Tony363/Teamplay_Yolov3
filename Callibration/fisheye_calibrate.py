@@ -102,6 +102,13 @@ def load_coefficients(path):
     return camera_matrix, dist_matrix,(int(DIM[0]),int(DIM[1]))
 
 def arguments():
+    """
+    --image_dir + --image_format + --save_file = create callibration matrix
+    --image_dir + --image_format + read_yaml = test by image callibration on source images
+    --read_yaml + --read_vid + --view_vid = view undistortion on video
+    --read_yaml + --read-vid + --write_vid = write video to file
+    try --detailed flag to more custom configurations
+    """
     parser = argparse.ArgumentParser(description='Camera calibration')
     parser.add_argument('--image_dir', type=str, required=False,help='test sample image folder')
     parser.add_argument('--image_format', type=str, required=False,  help='image format, png/jpg')
