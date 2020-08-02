@@ -1,7 +1,7 @@
 %YAML:1.0
 ---
 src_pts: !!opencv-matrix
-   rows: 0
-   cols: 1
-   dt: d
-   data: []
+   rows: 2
+   cols: 2
+   dt: i
+   data: [ 31, 1219, 31, 1219 ]

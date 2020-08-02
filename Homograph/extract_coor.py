@@ -9,9 +9,13 @@ class CoordinateStore:
         self.args = args
 
     def select_point(self,event,x,y,flags,param):
-        if event == cv2.EVENT_LBUTTONDBLCLK:
-            cv2.circle(img,(x,y),30,(255,0,0),-1)
-            self.points.append([x,y])
+        if event == cv2.EVENT_LBUTTONDBLCLK:  
+            if args.resized:
+                cv2.circle(img,(int(x*self.ratio),int(y*self.ratio)),10,(255,0,0),-1)
+                self.points.append([int(x*self.ratio),int(y*self.ratio)])
+            else:
+                cv2.circle(img,(x,y),30,(255,0,0),-1)
+                self.points.append([x,y])
 
     def save_pts(self,pts,args):
         """ save manual extract homographic points to src_pts.yml dst_pts.yml in homograph_pts folder """
@@ -28,6 +32,7 @@ class CoordinateStore:
         print("file saved")
 
 def main(args):
+    global img
     img = cv2.imread('{image}'.format(image=args.image))
     resized = imutils.resize(img,width=1080)
     resized_ratio = img.shape[1]/resized.shape[1]
@@ -50,7 +55,7 @@ def main(args):
 
     print("Selected Coordinates: ",np.array(coordinateStore1.points))
     if args.src or args.dst:
-        coordinateStore1.save_pts(np.array(coordinateStore1.points),args)
+        coordinateStore1.save_pts(np.array(coordinateStore1.points),args) 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="src_pts or dst_pts")
@@ -60,4 +65,3 @@ if __name__ == "__main__":
     parser.add_argument("--dst",action="store_true",required=False,help="dst_pts true")
     args = parser.parse_args()
     main(args)
-     
