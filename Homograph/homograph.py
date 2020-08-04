@@ -18,7 +18,7 @@ from collections import deque
 from detectron2.utils.visualizer import ColorMode
 from detectron2.utils.visualizer import GenericMask
 
-
+from resize_overly import combine_two_color_images, overlay_subframe,overlay_vid
 
 def load_cfg(parser,args):
     """
@@ -85,6 +85,8 @@ def arguments():
     parser.add_argument('--homographic_points',type=str,required=False,default='/homographic_pts/homographic.yml',help='read src_pts and dst_pts yaml file')
     parser.add_argument('--load_pts',nargs="+",type=str,required=False,help="load pts yml")
     parser.add_argument('--detect_box',action="store_true",required=False,help="write detection box")
+    parser.add_argument('--background_vid',type=str,required=True,help='background video')
+    parser.add_argument('--subframe_vid',type=str,required=True,help='subframe video')
     args = parser.parse_args()
     return parser,args
 
@@ -307,3 +309,5 @@ if __name__ == "__main__":
     # write to video
     create_homograph(args,cfg,predictor,src_pts,dst_pts,img_dst)
 
+    # overlay videos
+    overlay_vid(parser,args)
